@@ -1,0 +1,24 @@
+all: build
+
+include $(dir)/Makefile
+
+MAINOBJ := $(dir)/all.o
+
+build: $(MAINOBJ)
+	$(call recurse,build)
+
+$(MAINOBJ): $(addprefix $(dir)/,$(OBJS))
+	echo "Linking $(MAINOBJ) ..."
+	$(LD) $(LDFLAGS) -r -o $@ $^
+
+.PHONY: dep
+dep:
+	$(CC) $(CFLAGS) -M $(wildcard $(dir)/*.c) | sed 's/^\(.*\):/\1 .depend:/g' > $(dir)/.depend
+	-$(AS) $(ASFLAGS) -M $(wildcard $(dir)/*.asm) 2>/dev/null | sed 's/^\(.*\):/\1 .depend:/g' >> $(dir)/.depend
+	$(call recurse,dep)
+
+include $(TOPDIR)/Rules.make
+
+ifeq ($(wildcard $(dir)/.depend), $(dir)/.depend)
+include $(dir)/.depend
+endif
