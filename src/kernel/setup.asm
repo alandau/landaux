@@ -5,17 +5,19 @@ EXTERN kernel_start
 ; we load the kernel at virtual C0000000 and physical 1000
 ; thus the segment base must be 40001000
 
-%define SEG_BASE		0x40001000
+%define SEG_BASE			0x40001000
 %define KERNEL_VIRT_ADDR	0xC0000000
 %define KERNEL_PHYS_ADDR	0x1000
 %define PHYS_MEM_VIRT_ADDR	0xF0000000
 
-%define MEM_SIZE		(32*1024*1024)
+; %define MEM_SIZE		(32*1024*1024)
 
-PAGE_DIR	equ	0x100000	; 1MB
-KER_PAGE_TABLE	equ	0x101000	; 1MB + 4KB
-FIRST_MB	equ	0x102000	; 1MB + 8KB
-ALL_MEM_TABLES	equ	0x103000	; 1MB + 12KB
+EXTERN page_dir
+EXTERN kernel_page_table
+EXTERN first_mb_table
+;KER_PAGE_TABLE	equ	0x101000	; 1MB + 4KB
+;FIRST_MB	equ	0x102000	; 1MB + 8KB
+;ALL_MEM_TABLES	equ	0x103000	; 1MB + 12KB
 
 GLOBAL entry
 entry:
@@ -23,7 +25,6 @@ cli
 mov ax, 0xB800
 mov fs, ax
 mov byte [fs:0], '1'
-
 
 
 ; load GDT and IDT (assumes cs=0)
@@ -77,7 +78,7 @@ mov gs, ax
 mov byte [fs:0xB8000], '5'
 mov ax, KERNEL_SS
 mov ss, ax
-mov esp, 0xA0000
+; initialize esp after paging is enabled
 mov eax, [SEG_BASE+data_magic]
 cmp eax, DS_MAGIC
 jne $
@@ -111,36 +112,39 @@ xor eax, eax
 rep stosd
 
 ; initialize paging
-; clear page directory and page table
-cld
-xor eax, eax
-mov edi, PAGE_DIR
-mov ecx, 4096 / 4
-rep stosd
-mov edi, KER_PAGE_TABLE
-mov ecx, 4096 / 4
-rep stosd
-mov edi, FIRST_MB
-mov ecx, 4096 / 4
-rep stosd
+; page directory and page table are part of the BSS and thus are already cleared
+; cld
+; xor eax, eax
+; mov edi, PAGE_DIR
+; mov ecx, 4096 / 4
+; rep stosd
+; mov edi, KER_PAGE_TABLE
+; mov ecx, 4096 / 4
+; rep stosd
+; mov edi, FIRST_MB
+; mov ecx, 4096 / 4
+; rep stosd
 
 ; make the pde corresponding to the kernel addresses to point to the page table. 3=ring0 + present + write
-; map the first 
-mov dword [PAGE_DIR], FIRST_MB | 3
-mov dword [PAGE_DIR + KERNEL_VIRT_ADDR/4096/1024*4], KER_PAGE_TABLE | 3
+mov eax, SEG_BASE+first_mb_table
+or eax, 3
+mov dword [SEG_BASE+page_dir], eax
+mov eax, SEG_BASE+kernel_page_table
+or eax, 3
+mov dword [SEG_BASE+page_dir + KERNEL_VIRT_ADDR/(4*1024*1024)*4], eax
 
 ; map all memory
-mov edi, PAGE_DIR + (PHYS_MEM_VIRT_ADDR / (4*1024*1024) * 4)
-mov eax, ALL_MEM_TABLES | 3
-mov ecx, MEM_SIZE / (4*1024*1024)
-map_page_dir:
-stosd
-add eax, 4096
-loop map_page_dir
+; mov edi, PAGE_DIR + (PHYS_MEM_VIRT_ADDR / (4*1024*1024) * 4)
+; mov eax, ALL_MEM_TABLES | 3
+; mov ecx, MEM_SIZE / (4*1024*1024)
+; map_page_dir:
+; stosd
+; add eax, 4096
+; loop map_page_dir
 
 ; fill in page table to map kernel addresses
 EXTERN end
-mov edi, KER_PAGE_TABLE
+mov edi, SEG_BASE+kernel_page_table
 mov eax, KERNEL_PHYS_ADDR | 3
 mov ecx, end
 sub ecx, KERNEL_VIRT_ADDR - 4095
@@ -151,25 +155,25 @@ add eax, 4096
 loop map_kernel
 
 ; map first 1MB
-mov edi, FIRST_MB
-mov eax, 0 | 3
-mov ecx, 1024*1024/4096		; ecx = num pages in 1MB
-map_1mb:
-stosd
-add eax, 4096
-loop map_1mb
+ mov edi, SEG_BASE+first_mb_table
+ mov eax, 0 | 3
+ mov ecx, 1024*1024/4096		; ecx = num pages in 1MB
+ map_1mb:
+ stosd
+ add eax, 4096
+ loop map_1mb
 
 ; map all physical memory to PHYS_MEM
-mov edi, ALL_MEM_TABLES
-mov eax, 0 | 3
-mov ecx, MEM_SIZE / 4096	; ecx = num pages in physical memory
-mem_map:
-stosd
-add eax, 4096
-loop mem_map
+; mov edi, ALL_MEM_TABLES
+; mov eax, 0 | 3
+; mov ecx, MEM_SIZE / 4096	; ecx = num pages in physical memory
+; mem_map:
+; stosd
+; add eax, 4096
+; loop mem_map
 
 ; all page tables are now setup, enable paging!
-mov eax, PAGE_DIR
+mov eax, SEG_BASE+page_dir
 mov cr3, eax
 jmp $+2
 mov eax, cr0
@@ -180,6 +184,9 @@ jmp $+2
 jmp KERNEL_CS:paging_enabled
 
 paging_enabled:
+EXTERN stack
+%define STACK_SIZE 4096
+mov esp, stack + STACK_SIZE
 mov byte [0xb8000], '*'
 call kernel_start
 jmp $

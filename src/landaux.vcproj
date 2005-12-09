@@ -18,7 +18,7 @@
 			CharacterSet="2">
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="plink -load linux &quot;cd os/landaux/src; make&quot;"/>
+				BuildCommandLine="plink -load linux &quot;cd os/landaux/trunk/src; make&quot;"/>
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
@@ -79,15 +79,9 @@
 				Filter="">
 				<File
 					RelativePath=".\arch\arch.c">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\arch\Makefile">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 			</Filter>
 			<Filter
@@ -95,15 +89,9 @@
 				Filter="">
 				<File
 					RelativePath=".\boot\boot.asm">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\boot\Makefile">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 			</Filter>
 			<Filter
@@ -111,27 +99,15 @@
 				Filter="">
 				<File
 					RelativePath=".\scripts\cpboot.c">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\scripts\Makefile">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\scripts\patch_boot.c">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\scripts\syms.c">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32">
 						<Tool
@@ -145,57 +121,30 @@
 				Filter="">
 				<File
 					RelativePath=".\include\arch.h">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\include\irq.h">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\include\kernel.h">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\include\mm.h">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\include\stdarg.h">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\include\stddef.h">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\include\string.h">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\include\syms.h">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\include\video.h">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 			</Filter>
 			<Filter
@@ -203,51 +152,27 @@
 				Filter="">
 				<File
 					RelativePath=".\kernel\debug.c">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\kernel\interrupt.c">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\kernel\irq.c">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\kernel\main.c">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\kernel\Makefile">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\kernel\setup.asm">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\kernel\syms.c">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\kernel\video.c">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 			</Filter>
 			<Filter
@@ -255,35 +180,20 @@
 				Filter="">
 				<File
 					RelativePath=".\mm\Makefile">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\mm\mm.c">
-					<FileConfiguration
-						Name="Debug|Win32">
-					</FileConfiguration>
 				</File>
 			</Filter>
 		</Filter>
 		<File
 			RelativePath=".\Makefile">
-			<FileConfiguration
-				Name="Debug|Win32">
-			</FileConfiguration>
 		</File>
 		<File
 			RelativePath=".\Rules.make">
-			<FileConfiguration
-				Name="Debug|Win32">
-			</FileConfiguration>
 		</File>
 		<File
 			RelativePath=".\script.ld">
-			<FileConfiguration
-				Name="Debug|Win32">
-			</FileConfiguration>
 		</File>
 	</Files>
 	<Globals>

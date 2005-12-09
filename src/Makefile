@@ -66,15 +66,15 @@ clean:
 
 install: image
 	scripts/cpboot boot/boot.o ../bochs/floppya.img
-	mount ../bochs/mnt
+	sudo mount -t vfat -o loop,uid=501,gid=501 ../bochs/floppya.img ../bochs/mnt
 	cp image ../bochs/mnt
-	umount ../bochs/mnt
+	sudo umount ../bochs/mnt
 	scripts/patch_boot image ../bochs/floppya.img
 
 bochs: install
-	cd ../bochs && bochs -q
+	-cd ../bochs && bochs -q
 
 debug: install
-	cd ../bochs && bfe2
+	-cd ../bochs && bfe2
 
 include $(TOPDIR)/Rules.make

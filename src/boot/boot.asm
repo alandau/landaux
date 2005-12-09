@@ -33,10 +33,11 @@ start:
 mov ax, 0x07C0
 mov ds, ax
 
-mov ax, 0x9000
-mov ss, ax
-mov sp, 0xFFFF - (510-go)
+mov ax, 0x0060
 mov es, ax
+mov ax, 0x0050
+mov ss, ax
+mov sp, 100
 
 ; print banner
 mov si, hello_msg
@@ -44,33 +45,54 @@ call print
 
 ; relocate bootloader
 cld
-mov si, go
-mov di, 0xFFFF - (510-go)
-mov cx, - (510-go)
-neg cx
+;mov si, go
+;mov di, 0xFFFF - (510-go)
+;mov cx, - (510-go)
+;neg cx
+xor si, si
+xor di, di
+mov cx, 512
 rep movsb
+
+;jmp 0x9000:0xFFFF - (510-go)
+jmp 0x0060:go
+
+go:
+push es
+pop ds
 
 mov ax, 0x0100
 mov es, ax	; load kernel here
 
-jmp 0x9000:0xFFFF - (510-go)
-
-
-go:
 ; load sector
 mov si, 510 - MAX_KERNEL_SECS*2
 cld
 xor bx, bx
 .again:
-lodsw
-test ax, ax
-jz .end
-mov cx, [si]
-add si, 2
-call bios_read
-add bx, 512
+	lodsw
+	test ax, ax
+	jz .end
+	mov cx, [si]
+	add si, 2
+	.read_again:
+		push cx
+		mov cl, 1
+		call bios_read
+		inc ax
+		add bx, 512
+		test bx, bx
+		jnz .cont
+			push ax
+			mov ax, es
+			add ax, 4096
+			mov es, ax
+			pop ax
+		.cont:
+		pop cx
+	loop .read_again
 jmp .again
 .end:
+
 
 ; jump to kernel
 mov dl, [bsBootDev]
@@ -94,7 +116,8 @@ print:
 .end:
 	ret
 
-; reads cl sectors starting from ax into memory (es:bx)
+; reads up to cl sectors starting from ax into memory (es:bx)
+; on return, cl=number of sectors read
 bios_read:
 	push ax
 .again:
@@ -114,6 +137,7 @@ bios_read:
 	pop ax		; al = no. of sectors
 	mov ah, 0x02	; read
 	int 0x13
-	pop ax
 	jc .again
+	mov cl, al
+	pop ax
 	ret

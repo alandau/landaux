@@ -17,4 +17,10 @@ void kernel_start(void)
 	register_irq(0, do_timer, NULL);
 	register_irq(1, do_keyboard, NULL);
 	sti();
+	
+	printk("0x%x\n", alloc_page());
+	printk("0x%x\n", alloc_page());
+	printk("0x%x\n", alloc_page());
+	/* idle loop */
+	while (1) halt();
 }
