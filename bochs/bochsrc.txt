@@ -7,7 +7,7 @@ megs: 32
 
 # filename of ROM images
 romimage: file=/usr/share/bochs/BIOS-bochs-latest, address=0xf0000
-vgaromimage: file=/usr/share/bochs/VGABIOS-elpin-2.40
+vgaromimage: /usr/share/bochs/VGABIOS-elpin-2.40
 
 # what disk images will be used 
 floppya: 1_44=floppya.img, status=inserted

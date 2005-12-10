@@ -4,7 +4,9 @@ recurse = set -e; for i in $(SUBDIRS); do $(call call_me,$(addprefix $(dir)/,$$i
 %.o: %.c
 	echo "Compiling $< ..."
 	$(CC) $(CFLAGS) -c -o $@ $<
+	: > $(TOPDIR)/.changed
 
 %.o: %.asm
 	echo "Compiling $< ..."
 	$(AS) $(ASFLAGS) -o $@ $<
+	: > $(TOPDIR)/.changed

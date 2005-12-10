@@ -1,6 +1,6 @@
 VERSION_MAJOR   := 0
 VERSION_MINOR   := 0
-VERSION_RELEASE := 4
+VERSION_RELEASE := 5
 VERSION_BUILD   := $(shell cat .build 2>/dev/null)
 VERSION_BUILD   := $(shell expr $(VERSION_BUILD) + 1)
 VERSION         := $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_RELEASE).b$(VERSION_BUILD)
@@ -42,6 +42,9 @@ version:
 
 image: boot scripts version
 	$(call recurse,build)
+	[ -e .changed ] && { $(MAKE) link && rm -f .changed || exit 1; } || { echo "Nothing changed, not linking"; exit 0; }
+
+link:
 	echo "Linking kernel image..."
 	$(LD) -o image.elf -T script.ld $(OBJS)
 	nm image.elf | sort | scripts/syms > ksyms.c
@@ -53,7 +56,8 @@ image: boot scripts version
 	nm image.elf | sort > system.map
 	objcopy -O binary image.elf image
 	rm -f ksyms.c ksyms.o
-	echo Build `cat .build`
+	echo "Image size: `ls -l image | awk '{print $$5}'`"
+	echo Build: `cat .build`
 
 scripts boot:
 	$(MAKE) -C $@

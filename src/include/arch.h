@@ -48,7 +48,9 @@ static inline void restore_flags(unsigned long flags)
 
 static inline void halt(void)
 {
-	__asm__ __volatile__ ("hlt");
+	// overcomes Bochs bug: can't halt with interrupts off
+	/* __asm__ __volatile__ ("hlt"); */
+	while (1);
 }
 
 static inline unsigned long get_esp(void)

@@ -13,7 +13,7 @@ $(MAINOBJ): $(addprefix $(dir)/,$(OBJS))
 
 .PHONY: dep
 dep:
-	$(CC) $(CFLAGS) -M $(wildcard $(dir)/*.c) | sed 's/^\(.*\):/\1 .depend:/g' > $(dir)/.depend
+	$(CC) $(CFLAGS) -M $(wildcard $(dir)/*.c) | sed 's#^\(.*\):#$(dir)/\1 .depend:#g' > $(dir)/.depend
 	-$(AS) $(ASFLAGS) -M $(wildcard $(dir)/*.asm) 2>/dev/null | sed 's/^\(.*\):/\1 .depend:/g' >> $(dir)/.depend
 	$(call recurse,dep)
 

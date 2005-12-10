@@ -7,8 +7,6 @@
 #define CMOS_REG		0x70
 #define CMOS_DATA		0x71
 
-#define CR0_PG_BIT		0x80000000
-
 #define ONE_MB			0x100000
 
 #define PTE_PRESENT		0x01
@@ -16,10 +14,6 @@
 #define PTE_USER		0x04
 #define PTE_ACCESSED	0x20
 #define PTE_DIRTY		0x40
-
-#define NUM_PTE			(PAGE_SIZE / sizeof(pte_t))
-
-#define IDENTITY_MAP	(1024*1024)	/* 1MB */
 
 #define PHYS_MEM				0xF0000000
 #define KERNEL_VIRT_ADDRESS		0xC0000000
@@ -32,7 +26,8 @@ typedef struct pte_struct		/* page table entry */
 	unsigned frame : 20;
 } pte_t;
 
-static unsigned long memsize;		/* in Kbytes */
+static unsigned long memsize;		/* in bytes */
+static unsigned long memused;		/* in bytes */
 static unsigned long bitmap[MAX_MEM_SIZE / PAGE_SIZE / 32];
 static int bitmap_size;				/* number of unsigned long's in mem_bitmap */
 static unsigned long kernel_size;	/* in bytes */
@@ -42,8 +37,8 @@ pte_t kernel_page_table[PAGE_SIZE/sizeof(pte_t)] __attribute__ ((aligned (PAGE_S
 pte_t first_mb_table[PAGE_SIZE/sizeof(pte_t)] __attribute__ ((aligned (PAGE_SIZE)));
 unsigned long stack[1024] __attribute__ ((aligned (PAGE_SIZE)));
 
-/* in Kbytes */
-static unsigned long get_memsize(void)
+/* in bytes */
+static unsigned long __get_memsize(void)
 {
 	unsigned short total;
 	unsigned char tmp;
@@ -53,7 +48,7 @@ static unsigned long get_memsize(void)
 	outb(CMOS_REG, 0x17);
 	tmp = inb(CMOS_DATA);
 	total += tmp;
-	return total + 1024;
+	return (total + 1024) * 1024;
 }
 
 /* returns frame number of allocated frame */
@@ -72,6 +67,7 @@ unsigned long alloc_phys_page(void)
 		bit_offs++;
 	}
 	bitmap[i] |= bit;			/* mark it as used */
+	memused += PAGE_SIZE;
 	return i*32 + bit_offs;		/* 32 == bits in long */
 }
 
@@ -85,18 +81,20 @@ void free_phys_page(unsigned long frame)
 	if ((bitmap[i] & bit) == 0)		/* page is free */
 		BUG();
 	bitmap[i] &= ~bit;
+	memused -= PAGE_SIZE;
 }
 
 void init_mm(void)
 {
 	unsigned long i, kernel_pages;
-	memsize = get_memsize();
+	memsize = __get_memsize();
+	memused = 0;
 	extern unsigned char code[], end[];
-	printk("Found %u MB of memory.\n", memsize/1024);
+	printk("Found %u MB of memory.\n", memsize/1024/1024);
 	kernel_size = end-code;
 	printk("Kernel takes up %u bytes.\n", kernel_size);
 	/* Assume memory size is a multiple of 128K */
-	bitmap_size = (memsize / PAGE_SIZE_K) / 32;
+	bitmap_size = (memsize / PAGE_SIZE) / 32;
 	/* bitmap is in BSS and thus already zeroed */
 
 	/* mark that the memory used by kernel: start at 0x1000=4KB, end at 'end'
@@ -106,12 +104,14 @@ void init_mm(void)
 	if (kernel_size % PAGE_SIZE) kernel_pages++;
 	for (i=1; i<1+kernel_pages; i++)
 		bitmap[i/32] |= 1 << (i%32);
+	memused += (1+kernel_pages) * PAGE_SIZE;
 
 	for (i=0xA0000/PAGE_SIZE; i<ONE_MB/PAGE_SIZE; i++)
 		bitmap[i/32] |= 1 << (i%32);
+	memused += ONE_MB-0xA0000;
 
 	// map all physical memory at virtual address PHYS_MEM
-	for (i=0; i<memsize/PAGE_SIZE_K; i++)
+	for (i=0; i<memsize/PAGE_SIZE; i++)
 	{
 		pte_t *first = &page_dir[(PHYS_MEM/PAGE_SIZE+i)/1024];
 		pte_t *second;
@@ -152,21 +152,12 @@ void *alloc_page(void)
 		}
 		for (j=0; j<PAGE_SIZE/sizeof(pte_t); j++)
 		{
-			pte_t *second = (pte_t *)(PHYS_MEM + (first->frame*PAGE_SIZE) + j*sizeof(pte_t));
-
-
-
-//	printk("second=%x\n", second);
-//	printk("1: %u\n", page_dir[960].frame);
-//	while (1);
-
-
-
+			pte_t *second = (pte_t *)(PHYS_MEM + (first->frame*PAGE_SIZE)) + j;
 			if (!(second->flags & PTE_PRESENT))
 			{
 				second->flags = PTE_PRESENT | PTE_WRITE;
 				second->frame = phys;
-				return (void *)(((i<<10)|j) << 12);
+				return (void *)(((i<<10)|j) << PAGE_SHIFT);
 			}
 		}
 	}
@@ -175,4 +166,36 @@ void *alloc_page(void)
 
 void free_page(void *address)
 {
+	unsigned long addr = (unsigned long)address;
+	int i, j;
+	pte_t *first, *second;
+	if (addr & (PAGE_SIZE-1)) BUG();
+	addr >>= PAGE_SHIFT;
+	i = addr >> 10;
+	j = addr & ((1<<10) - 1);
+	first = &page_dir[i];
+	if (!(first->flags & PTE_PRESENT)) BUG();
+	second = (pte_t *)(PHYS_MEM + (first->frame*PAGE_SIZE)) + j;
+	if (!(second->flags & PTE_PRESENT)) BUG();
+	second->flags &= ~PTE_PRESENT;
+	free_phys_page(second->frame);
+}
+
+
+
+
+
+unsigned long get_mem_size()
+{
+	return memsize;
+}
+
+unsigned long get_used_mem()
+{
+	return memused;
+}
+
+unsigned long get_free_mem()
+{
+	return memsize - memused;
 }
