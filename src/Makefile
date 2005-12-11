@@ -15,7 +15,7 @@ endif
 CC=gcc
 AS=nasm -f elf
 INCLUDE=$(TOPDIR)/include
-CFLAGS := -I$(INCLUDE) -finline-functions -O2 -nostdinc -Wall
+CFLAGS := -I$(INCLUDE) -finline-functions -nostdinc -Wall -Wstrict-prototypes
 ASFLAGS := 
 
 export CC AS CFLAGS ASFLAGS

@@ -1,7 +1,7 @@
 #ifndef SYMS_H
 #define SYMS_H
 
-#define MAX_SYMBOL_LEN		20
+#define MAX_SYMBOL_LEN		30
 
 typedef struct symbol_struct
 {

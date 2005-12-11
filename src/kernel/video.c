@@ -2,6 +2,7 @@
 #include <video.h>
 #include <stdarg.h>
 #include <string.h>
+#include <mm.h>
 
 static unsigned short cursor = 0;
 static char *screen = (char *)0xB8000;
@@ -14,6 +15,7 @@ void init_video(void)
 	tmp = inb(0x3D5);
 	outb(0x3D4, 0x0E);
 	cursor = (inb(0x3D5) << 8) + tmp;
+	screen = ioremap((unsigned long)screen, ROWS*COLUMNS);
 }
 
 unsigned char get_color(void)
@@ -45,7 +47,7 @@ static void scroll(void)
 	/* scroll everything 1 line up */
 	memmove(screen, screen + COLUMNS*2, (ROWS-1) * COLUMNS * 2);
 	/* clear the last line */
-	memset16(screen + (ROWS-1) * COLUMNS * 2, (color << 8) + ' ', COLUMNS * 2);
+	memset16(screen + (ROWS-1) * COLUMNS * 2, (color << 8) + ' ', COLUMNS);
 }
 
 static void print_str(const char *s)

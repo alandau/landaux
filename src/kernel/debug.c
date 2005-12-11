@@ -18,7 +18,7 @@ void print_stack(void)
 	register int i = MAX_CALL_TRACE;
 	register symbol_t *sym;
 	register unsigned long *esp = (unsigned long *)get_esp();
-	register unsigned long *orig_esp = esp;
+//	register unsigned long *orig_esp = esp;
 	register unsigned long page = (unsigned long)esp & ~(PAGE_SIZE-1);
 	printk("Call Stack:\n");
 	while (i-- && page == ((unsigned long)esp & ~(PAGE_SIZE-1)))
@@ -28,6 +28,7 @@ void print_stack(void)
 			printk("[%0X] %0X %s\n", esp, *esp, sym->symbol);
 		esp++;
 	}
+	/*
 	printk("\nStack:\n");
 	esp = orig_esp;
 	i = MAX_DATA_TRACE;
@@ -36,6 +37,7 @@ void print_stack(void)
 		printk("[%0X] %0X\n", esp, *esp);
 		esp++;
 	}
+	*/
 }
 
 void dump(const regs_t *r)

@@ -25,7 +25,7 @@ void g(void **a)
 	}
 }
 
-void test_mm()
+void test_mm(void)
 {
 	void **a, **b, **c;
 	unsigned long f1, f2, f3;
@@ -50,8 +50,8 @@ void test_mm()
 /* This is the C entry point of the kernel. It runs with interrupts disabled */
 void kernel_start(void)
 {
-	init_video();
 	init_mm();
+	init_video();
 	init_pic();
 	init_pit();
 	void do_keyboard(void *);
@@ -59,6 +59,7 @@ void kernel_start(void)
 	register_irq(0, do_timer, NULL);
 	register_irq(1, do_keyboard, NULL);
 	sti();
+	printk("Found %u MB of memory.\n", get_mem_size()/1024/1024);
 	printk("Memory used: %u bytes.\n", get_used_mem());
 
 	/* idle loop */

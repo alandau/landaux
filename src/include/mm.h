@@ -8,8 +8,12 @@
 void init_mm(void);
 void *alloc_page(void);
 void free_page(void *address);
-unsigned long get_mem_size();
-unsigned long get_used_mem();
-unsigned long get_free_mem();
+
+unsigned long get_mem_size(void);
+unsigned long get_used_mem(void);
+unsigned long get_free_mem(void);
+
+void *ioremap(unsigned long phys_addr, unsigned long size);
+void iounmap(void *address, unsigned long size);
 
 #endif
