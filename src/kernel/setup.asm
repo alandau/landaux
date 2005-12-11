@@ -194,7 +194,7 @@ jmp $
 
 
 %macro setup_int 1
-    dw (%1 - $$ + KERNEL_VIRT_ADDR) & 0xFFFF,KERNEL_CS
+    dw (%1 - $$ + KERNEL_VIRT_ADDR) & 0xFFFF, KERNEL_CS
     db 0,0x8E
     dw (%1 - $$ + KERNEL_VIRT_ADDR) >> 16
 %endmacro
@@ -211,22 +211,22 @@ idtr dw idt_size
      dd SEG_BASE+idt
 idt:
 setup_int int_divide				; 0
-setup_int int_debug				; 1
+setup_int int_debug					; 1
 setup_int int_reserved				; 2
 setup_int int_breakpoint			; 3
 setup_int int_overflow				; 4
 setup_int int_bounds				; 5
 setup_int int_opcode				; 6
-setup_int int_coprocessor_na			; 7
+setup_int int_coprocessor_na		; 7
 setup_int int_double_fault			; 8
-setup_int int_coprocessor_seg			; 9
-setup_int int_tss				; 10
+setup_int int_coprocessor_seg		; 9
+setup_int int_tss					; 10
 setup_int int_segment_na			; 11
-setup_int int_stack				; 12
+setup_int int_stack					; 12
 setup_int int_general_prot			; 13
 setup_int int_page_fault			; 14
 setup_int int_reserved				; 15
-setup_int int_coprocessor_err			; 16
+setup_int int_coprocessor_err		; 16
 ; 17-31 are reserved by Intel
 %rep (32-17)
 setup_int int_reserved
@@ -281,7 +281,7 @@ int_tss:			call_int_error    do_tss
 int_segment_na:			call_int_error    do_segment_na
 int_stack:			call_int_error    do_stack
 int_general_prot:		call_int_error    do_general_prot
-int_page_fault:			call_int_no_error do_page_fault
+int_page_fault:			call_int_error do_page_fault
 int_coprocessor_err:		call_int_no_error do_coprocessor_err
 int_reserved:			call_int_no_error do_reserved
 

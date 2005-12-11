@@ -60,10 +60,24 @@ static inline unsigned long get_esp(void)
 	return ret;
 }
 
+static inline unsigned long get_ebp(void)
+{
+	unsigned long ret;
+	__asm__ __volatile__ ("mov %%ebp, %0" : "=r" (ret) : /* no input */);
+	return ret;
+}
+
 static inline unsigned long get_cr0(void)
 {
 	unsigned long ret;
 	__asm__ __volatile__ ("mov %%cr0, %0" : "=r" (ret) : /* no input */);
+	return ret;
+}
+
+static inline unsigned long get_cr2(void)
+{
+	unsigned long ret;
+	__asm__ __volatile__ ("mov %%cr2, %0" : "=r" (ret) : /* no input */);
 	return ret;
 }
 

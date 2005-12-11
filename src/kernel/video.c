@@ -15,7 +15,7 @@ void init_video(void)
 	tmp = inb(0x3D5);
 	outb(0x3D4, 0x0E);
 	cursor = (inb(0x3D5) << 8) + tmp;
-	screen = ioremap((unsigned long)screen, ROWS*COLUMNS);
+	screen = ioremap((unsigned long)screen, ROWS*COLUMNS*2);
 }
 
 unsigned char get_color(void)

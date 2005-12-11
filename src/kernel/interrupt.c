@@ -82,6 +82,7 @@ void do_general_prot(regs_t r)
 void do_page_fault(regs_t r)
 {
 	printk("Page fault\n");
+	printk("Trying to %s address: 0x%0x\n", (r.error_code & 0x02?"write to":"read from"), get_cr2());
 	oops(&r);
 }
 

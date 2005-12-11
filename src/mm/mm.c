@@ -105,21 +105,6 @@ unsigned long alloc_page_table_page(pte_t *first)
 	return table;
 }
 
-void a(void)
-{
-	// unmap the first mb
-	pte_t *second = PHYS_MEM+page_dir[0].frame*PAGE_SIZE;
-	int j;
-	for (j=0;j<1024;j++)
-	{
-		if ((second->flags & PTE_PRESENT)) second->flags &= ~PTE_PRESENT;
-		second++;
-	}
-	page_dir[0].flags &= ~PTE_PRESENT;
-	int i = ((unsigned long)first_mb_table - KERNEL_VIRT_ADDRESS) >> PAGE_SHIFT;
-	bitmap[i/32] &= ~(1 << (i%32));
-}
-
 void init_mm(void)
 {
 	unsigned long i, kernel_pages;
@@ -165,7 +150,14 @@ void init_mm(void)
 		second->flags = PTE_PRESENT | PTE_WRITE;
 		second->frame = i;
 	}
-//	a();
+
+	// unmap the first mb
+//	page_dir[0].flags &= ~PTE_PRESENT;
+//	int i = ((unsigned long)first_mb_table - KERNEL_VIRT_ADDRESS) >> PAGE_SHIFT;
+//	bitmap[i/32] &= ~(1 << (i%32));
+	// for now, unmap first page, to catch NULL dereferences
+	pte_t *second = (pte_t *)(PHYS_MEM+page_dir[0].frame*PAGE_SIZE);
+	second->flags &= ~PTE_PRESENT;
 }
 
 /* allocated a page and adds the necessary mappings to the page tables, creating more if needed

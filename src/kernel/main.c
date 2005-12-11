@@ -61,7 +61,7 @@ void kernel_start(void)
 	sti();
 	printk("Found %u MB of memory.\n", get_mem_size()/1024/1024);
 	printk("Memory used: %u bytes.\n", get_used_mem());
-
+	
 	/* idle loop */
 	while (1) halt();
 }

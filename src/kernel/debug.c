@@ -13,20 +13,23 @@ static inline int is_code(unsigned long address)
 }
 
 /* prints call stack in symbolic form */
-void print_stack(void)
+void print_stack(const regs_t *r)
 {
-	register int i = MAX_CALL_TRACE;
-	register symbol_t *sym;
-	register unsigned long *esp = (unsigned long *)get_esp();
-//	register unsigned long *orig_esp = esp;
-	register unsigned long page = (unsigned long)esp & ~(PAGE_SIZE-1);
+	int i = MAX_CALL_TRACE;
+	unsigned long *ebp = (unsigned long *)r->ebp;
+	unsigned long page = (unsigned long)ebp & ~(PAGE_SIZE-1);
+	symbol_t *sym = find_symbol(r->eip);
+	printk("At %0X %s [%0X] \n", sym->address, sym->symbol, r->eip);
 	printk("Call Stack:\n");
-	while (i-- && page == ((unsigned long)esp & ~(PAGE_SIZE-1)))
+	while (i-- && page == ((unsigned long)ebp & ~(PAGE_SIZE-1)))
 	{
-		sym = find_symbol(*esp);
-		if (is_code(*esp))
-			printk("[%0X] %0X %s\n", esp, *esp, sym->symbol);
-		esp++;
+		unsigned long addr = *(ebp+1);
+		if (is_code(addr))
+		{
+			sym = find_symbol(addr);
+			printk("%0X %s [%0X]\n", sym->address, sym->symbol, addr);
+		}
+		ebp = (unsigned long *)*ebp;
 	}
 	/*
 	printk("\nStack:\n");
@@ -47,8 +50,8 @@ void dump(const regs_t *r)
 		"CS= %0X\tDS= %0X\tES= %0X\tFS= %0X\tGS= %0X\n"
 		"EIP=%0X\tEFLAGS=%0X\n",
 		r->eax, r->ebx, r->ecx, r->edx, r->esi, r->edi, r->ebp, r->error_code,
-		r->cs, r->ds, r->es, r->fs, r->gs, r->eip, r->eflags);
-	print_stack();
+		r->cs & 0xFFFF, r->ds & 0xFFFF, r->es & 0xFFFF, r->fs & 0xFFFF, r->gs & 0xFFFF, r->eip, r->eflags);
+	print_stack(r);
 }
 
 void oops(const regs_t *r)
