@@ -6,20 +6,20 @@
 #include <irq.h>
 
 
-void f(void **a)
+void f(void **a, int count)
 {
 	int i;
-	for (i=0; i<1000; i++)
+	for (i=0; i<1000*count; i++)
 	{
 		a[i] = alloc_page();
 		if (!a[i]) {printk("i=%d\n", i); BUG();}
 	}
 }
 
-void g(void **a)
+void g(void **a, int count)
 {
 	int i;
-	for (i=0; i<1000; i++)
+	for (i=0; i<1000*count; i++)
 	{
 		free_page(a[i]);
 	}
@@ -27,24 +27,16 @@ void g(void **a)
 
 void test_mm(void)
 {
-	void **a, **b, **c;
+	void **a;
 	unsigned long f1, f2, f3;
-	a = alloc_page();
-	b = alloc_page();
-	c = alloc_page();
 	f1 = get_free_mem();
-	f(a);
-	f(b);
-	f(c);
+	a = alloc_pages(3);
+//	f(a, 3);
 	f2 = get_free_mem();
-	g(a);
-	g(b);
-	g(c);
+//	g(a, 3);
+	free_pages(a, 3);
 	f3 = get_free_mem();
 	printk("f1=%u\nf2=%u\nf3=%u\n", f1, f2, f3);
-	free_page(a);
-	free_page(b);
-	free_page(c);
 }
 
 /* This is the C entry point of the kernel. It runs with interrupts disabled */
@@ -61,6 +53,7 @@ void kernel_start(void)
 	sti();
 	printk("Found %u MB of memory.\n", get_mem_size()/1024/1024);
 	printk("Memory used: %u bytes.\n", get_used_mem());
+	test_mm();
 	
 	/* idle loop */
 	while (1) halt();

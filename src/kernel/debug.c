@@ -16,10 +16,14 @@ static inline int is_code(unsigned long address)
 void print_stack(const regs_t *r)
 {
 	int i = MAX_CALL_TRACE;
-	unsigned long *ebp = (unsigned long *)r->ebp;
+	unsigned long *ebp = (unsigned long *)(r ? r->ebp : get_ebp());
 	unsigned long page = (unsigned long)ebp & ~(PAGE_SIZE-1);
-	symbol_t *sym = find_symbol(r->eip);
-	printk("At %0X %s [%0X] \n", sym->address, sym->symbol, r->eip);
+	symbol_t *sym;
+	if (r)
+	{
+		sym = find_symbol(r->eip);
+		printk("At %0X %s+0x%x/0x%x [%0X] \n", sym->address, sym->symbol, r->eip - sym->address, (sym+1)->address-sym->address, r->eip);
+	}
 	printk("Call Stack:\n");
 	while (i-- && page == ((unsigned long)ebp & ~(PAGE_SIZE-1)))
 	{
@@ -27,7 +31,7 @@ void print_stack(const regs_t *r)
 		if (is_code(addr))
 		{
 			sym = find_symbol(addr);
-			printk("%0X %s [%0X]\n", sym->address, sym->symbol, addr);
+			printk("%0X %s+0x%x/0x%x [%0X]\n", sym->address, sym->symbol, addr - sym->address, (sym+1)->address-sym->address, addr);
 		}
 		ebp = (unsigned long *)*ebp;
 	}

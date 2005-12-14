@@ -52,7 +52,7 @@ static unsigned long __get_memsize(void)
 }
 
 /* returns frame number of allocated frame */
-unsigned long alloc_phys_page(void)
+static unsigned long alloc_phys_page(void)
 {
 	int i, bit = 1, bit_offs = 0;
 	for (i = 0; i < bitmap_size; i++)
@@ -71,8 +71,61 @@ unsigned long alloc_phys_page(void)
 	return i*32 + bit_offs;		/* 32 == bits in long */
 }
 
+static int have_enough_zeros(unsigned long *p, unsigned long start_bit, unsigned long max_bits, int zeros)
+{
+	for (; zeros && max_bits; max_bits--, zeros--)
+	{
+		if (p[start_bit/32] & (1<<(start_bit%32))) return 0;
+		start_bit++;
+	}
+	return (zeros == 0);
+}
+
+// allocates count consecutive frames
+static unsigned long alloc_phys_pages(unsigned long count)
+{
+	int i, bit;
+	if (count == 0) return 0;
+	for (i=0; i < bitmap_size; i++)
+	{
+		if (bitmap[i] == 0xFFFFFFFF) continue;
+		for (bit = 0; bit < 32; bit++)
+		{
+			if (!have_enough_zeros(bitmap, i*32 + bit, bitmap_size*32, count)) continue;
+			unsigned long pos = i*32;
+			unsigned long ret = pos + bit;
+			memused += (count << PAGE_SHIFT);
+			while (count--)
+			{
+				bitmap[pos] |= (1<<bit);
+				bit++;
+				if (bit == 32)
+				{
+					bit = 0;
+					pos++;
+				}
+			}
+			return ret;
+		}
+	}
+	return 0;
+}
+
+static void free_phys_pages(unsigned long frame, unsigned long count)
+{
+	if (count == 0) return;
+	if (frame/32 >= bitmap_size) BUG();
+	memused -= (count << PAGE_SHIFT);
+	while (count--)
+	{
+		if (!(bitmap[frame/32] & (1<<(frame%32)))) BUG();
+		bitmap[frame/32] &= ~(1<<(frame%32));
+		frame++;
+	}
+}
+
 /* returns frame number of the zeroed allocated frame */
-unsigned long alloc_zeroed_phys_page(void)
+static unsigned long alloc_zeroed_phys_page(void)
 {
 	unsigned long frame = alloc_phys_page();
 	if (!frame) return 0;
@@ -81,10 +134,11 @@ unsigned long alloc_zeroed_phys_page(void)
 }
 
 /* frees frame by number */
-void free_phys_page(unsigned long frame)
+static void free_phys_page(unsigned long frame)
 {
 	int bit_offs, bit, i;
 	i = frame / 32;			/* 4 == sizeof(unsigned long) */
+	if (i >= bitmap_size) BUG();
 	bit_offs = frame % 32;
 	bit = 1 << bit_offs;
 	if ((bitmap[i] & bit) == 0)		/* page is free */
@@ -95,7 +149,7 @@ void free_phys_page(unsigned long frame)
 
 /* allocates a pagetable page to be pointed by first
    returns the allocated frame number */
-unsigned long alloc_page_table_page(pte_t *first)
+static unsigned long alloc_page_table_page(pte_t *first)
 {
 	if (first->flags & PTE_PRESENT) BUG();
 	unsigned long table = alloc_zeroed_phys_page();
@@ -164,25 +218,19 @@ void init_mm(void)
    returns the virtual address of the newly allocated page */
 void *alloc_page(void)
 {
-	int i, j;
 	unsigned long phys = alloc_phys_page();
 	if (phys == 0) return NULL;
-	for (i=KERNEL_VIRT_ADDRESS/(4*1024*1024); i<KERNEL_VIRT_ADDRESS/(4*1024*1024) + PAGE_SIZE/sizeof(pte_t); i++)
-	{
-		pte_t *first = &page_dir[i];
-		if (!(first->flags & PTE_PRESENT)) alloc_page_table_page(first);
-		for (j=0; j<PAGE_SIZE/sizeof(pte_t); j++)
-		{
-			pte_t *second = (pte_t *)(PHYS_MEM + (first->frame*PAGE_SIZE)) + j;
-			if (!(second->flags & PTE_PRESENT))
-			{
-				second->flags = PTE_PRESENT | PTE_WRITE;
-				second->frame = phys;
-				return (void *)(((i<<10)|j) << PAGE_SHIFT);
-			}
-		}
-	}
-	return NULL;
+	return ioremap(phys << PAGE_SHIFT, PAGE_SIZE);
+}
+
+// allocated count consecutive pages and maps them to the vma
+void *alloc_pages(unsigned long count)
+{
+	if (count == 0) return NULL;
+	if (count == 1) return alloc_page();
+	unsigned long phys = alloc_phys_pages(count);
+	if (phys == 0) return NULL;
+	return ioremap(phys << PAGE_SHIFT, count << PAGE_SHIFT);
 }
 
 void free_page(void *address)
@@ -202,6 +250,17 @@ void free_page(void *address)
 	free_phys_page(second->frame);
 }
 
+void free_pages(void *address, unsigned long count)
+{
+	unsigned long __iounmap(void *address, unsigned long size);
+
+	if (count == 0) return;
+	if (count == 1) free_page(address);
+	if ((unsigned long)address & (PAGE_SIZE-1)) BUG();
+	unsigned long frame = __iounmap(address, count << PAGE_SHIFT);
+	if (frame == 0) BUG();
+	free_phys_pages(frame, count);
+}
 
 
 
@@ -233,6 +292,10 @@ int get_next_pte(pte_t *first1, pte_t *second1, pte_t **first2, pte_t **second2)
 		*first2 = first1+1;
 		*second2 = NULL;
 		if (*first2 - page_dir >= PAGE_SIZE/sizeof(pte_t)) return 0;
+		if ((*first2)->flags & PTE_PRESENT)				// *first2 is allocated, set *second2 to the first entry in it
+		{
+			*second2 = (pte_t *)(PHYS_MEM + ((*first2)->frame << PAGE_SHIFT));
+		}
 	}
 	else
 	{
@@ -245,12 +308,13 @@ int get_next_pte(pte_t *first1, pte_t *second1, pte_t **first2, pte_t **second2)
 
 void *ioremap(unsigned long phys_addr, unsigned long size)
 {
+	if (size == 0) return NULL;
 	unsigned long frame = phys_addr >> PAGE_SHIFT;
 	size += phys_addr & (PAGE_SIZE-1);
 	size += PAGE_SIZE-1;
 	unsigned long count = size >> PAGE_SHIFT;
 	if (count > PAGE_SIZE/sizeof(pte_t)) return NULL;
-	
+
 	// should map count frames starting at frame
 	pte_t *first = &page_dir[KERNEL_VIRT_ADDRESS/(4*1024*1024)];
 	if (!(first->flags & PTE_PRESENT)) alloc_page_table_page(first);
@@ -291,20 +355,53 @@ void *ioremap(unsigned long phys_addr, unsigned long size)
 				}
 				unsigned long offset = phys_addr & (PAGE_SIZE-1);
 				i = old_first - page_dir;
-				int j = ((unsigned long)old_second & (PAGE_SIZE-1)) / sizeof(pte_t);
+				unsigned long j = ((unsigned long)old_second & (PAGE_SIZE-1)) / sizeof(pte_t);
 				return (void *)((((i<<10) | j) << PAGE_SHIFT) | offset);
 			}
 			// if got here, then not found count free pages, and not allocated 2nd level page tables
 		}
 		pte_t *first2, *second2;
 		if (!get_next_pte(first, second, &first2, &second2)) return NULL;
-		if (second2 == NULL) alloc_page_table_page(first2);
+		if (second2 == NULL)
+		{
+			alloc_page_table_page(first2);
+			second2 = (pte_t *)(PHYS_MEM + (first2->frame << PAGE_SHIFT));
+		}
 		first = first2;
 		second = second2;
 	}
 	return NULL;
 }
 
+// returns the physical address of the page pointed to by address
+unsigned long __iounmap(void *address, unsigned long size)
+{
+	if (size == 0) return 0;
+	unsigned long addr = (unsigned long)address;
+	unsigned long page = addr >> PAGE_SHIFT;
+	size += addr & (PAGE_SIZE-1);
+	size += PAGE_SIZE-1;
+	unsigned long count = size >> PAGE_SHIFT;
+	if (count > PAGE_SIZE/sizeof(pte_t)) BUG();
+	int i = page>>10, j = page & 0x03FF;
+	pte_t *first = &page_dir[i];
+	if (!(first->flags & PTE_PRESENT)) BUG();
+	pte_t *second = (pte_t *)(PHYS_MEM + (first->frame<<PAGE_SHIFT)) + j;
+	unsigned long ret = second->frame;
+	while (count--)
+	{
+		if (!(second->flags & PTE_PRESENT)) BUG();
+		second->flags &= ~PTE_PRESENT;
+		pte_t *new_first, *new_second;
+		if (!get_next_pte(first, second, &new_first, &new_second)) BUG();
+		if (new_second == NULL) BUG();
+		first = new_first;
+		second = new_second;
+	}
+	return ret;
+}
+
 void iounmap(void *address, unsigned long size)
 {
+	__iounmap(address, size);
 }
