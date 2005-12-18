@@ -1,9 +1,9 @@
 #ifndef STRING_H
 #define STRING_H
 
-static inline void *memcpy(void *dest, const void *src, unsigned long count)
+static inline void *memcpy(void *dest, const void *src, u32 count)
 {
-	int tmp1, tmp2, tmp3;
+	u32 tmp1, tmp2, tmp3;
 	__asm__ __volatile__ (
 		"cld\n\t"
 		"rep\n\t"
@@ -14,9 +14,9 @@ static inline void *memcpy(void *dest, const void *src, unsigned long count)
 	return dest;
 }
 
-static inline void *memmove(void *dest, const void *src, unsigned long count)
+static inline void *memmove(void *dest, const void *src, u32 count)
 {
-	int tmp1, tmp2, tmp3;
+	u32 tmp1, tmp2, tmp3;
 	if (dest < src)
 	{
 		__asm__ __volatile__ (
@@ -40,9 +40,9 @@ static inline void *memmove(void *dest, const void *src, unsigned long count)
 	return dest;
 }
 
-static inline void *memset(void *dest, unsigned char value, unsigned long count)
+static inline void *memset(void *dest, u8 value, u32 count)
 {
-	int tmp1, tmp2;
+	u32 tmp1, tmp2;
 	__asm__ __volatile__ (
 		"cld\n\t"
 		"rep\n\t"
@@ -53,9 +53,9 @@ static inline void *memset(void *dest, unsigned char value, unsigned long count)
 	return dest;
 }
 
-static inline void *memset16(void *dest, unsigned short value, unsigned long count)
+static inline void *memset16(void *dest, u16 value, u32 count)
 {
-	int tmp1, tmp2;
+	u32 tmp1, tmp2;
 	__asm__ __volatile__ (
 		"cld\n\t"
 		"rep\n\t"
@@ -66,9 +66,9 @@ static inline void *memset16(void *dest, unsigned short value, unsigned long cou
 	return dest;
 }
 
-static inline void *memset32(void *dest, unsigned long value, unsigned long count)
+static inline void *memset32(void *dest, u32 value, u32 count)
 {
-	int tmp1, tmp2;
+	u32 tmp1, tmp2;
 	__asm__ __volatile__ (
 		"cld\n\t"
 		"rep\n\t"

@@ -3,21 +3,31 @@
 
 #include <stddef.h>
 
+#define KERNEL_CS		0x0008
+#define KERNEL_DS		0x0010
+#define TSS_SELECTOR	0x0020
+
+#define USER_CS			0x000F
+#define USER_DS			0x0017
+
 typedef struct regs_struct
 {
-	unsigned long ebx, ecx, edx, esi, edi, ebp;
-	unsigned long ds, es, fs, gs;
-	unsigned long eax, error_code;
-	unsigned long eip, cs, eflags;
-	/* unsigned long old_esp, old_ss; */
+	u32 ebx, ecx, edx, esi, edi, ebp;
+	u16 ds, __ds, es, __es, fs, __fs, gs, __gs;
+	u32 eax, error_code;
+	u32 eip;
+	u16 cs, __cs;
+	u32 eflags;
+	u32 esp;
+	u16 ss, __ss;
 } regs_t;
 
-static inline void outb(unsigned short port, unsigned char value)
+static inline void outb(u16 port, u8 value)
 {
 	__asm__ __volatile__ ("outb %%al, %%dx" : /* no output */ : "a" (value), "d" (port));
 }
 
-static inline unsigned char inb(unsigned short port)
+static inline u8 inb(u16 port)
 {
 	unsigned char ret;
 	__asm__ __volatile__ ("inb %%dx, %%al" : "=a" (ret) : "d" (port));
@@ -34,14 +44,21 @@ static inline void sti(void)
 	__asm__ __volatile__ ("sti");
 }
 
-static inline unsigned long save_flags(void)
+static inline u32 save_flags(void)
 {
-	unsigned long flags;
+	u32 flags;
 	__asm__ __volatile__ ("pushf\n\tpopl %0" : "=g" (flags) : /* no input */);
 	return flags;
 }
 
-static inline void restore_flags(unsigned long flags)
+static inline u32 save_flags_irq(void)
+{
+	u32 flags = save_flags();
+	cli();
+	return flags;
+}
+
+static inline void restore_flags(u32 flags)
 {
 	__asm__ __volatile__ ("pushl %0\n\tpopf" : /* no output */ : "g" (flags) : "memory", "cc");
 }
@@ -53,43 +70,63 @@ static inline void halt(void)
 	while (1);
 }
 
-static inline unsigned long get_esp(void)
+static inline u32 get_esp(void)
 {
-	unsigned long ret;
+	u32 ret;
 	__asm__ __volatile__ ("mov %%esp, %0" : "=r" (ret) : /* no input */);
 	return ret;
 }
 
-static inline unsigned long get_ebp(void)
+static inline u32 get_ebp(void)
 {
-	unsigned long ret;
+	u32 ret;
 	__asm__ __volatile__ ("mov %%ebp, %0" : "=r" (ret) : /* no input */);
 	return ret;
 }
 
-static inline unsigned long get_cr0(void)
+static inline u32 get_cr0(void)
 {
-	unsigned long ret;
+	u32 ret;
 	__asm__ __volatile__ ("mov %%cr0, %0" : "=r" (ret) : /* no input */);
 	return ret;
 }
 
-static inline unsigned long get_cr2(void)
+static inline u32 get_cr2(void)
 {
-	unsigned long ret;
+	u32 ret;
 	__asm__ __volatile__ ("mov %%cr2, %0" : "=r" (ret) : /* no input */);
 	return ret;
 }
 
-static inline void set_cr0(unsigned long cr0)
+static inline void set_cr0(u32 cr0)
 {
 	__asm__ __volatile__ ("mov %0, %%cr0" : /* no output */ : "r" (cr0));
 }
 
-static inline void set_cr3(unsigned long cr3)
+static inline void set_cr3(u32 cr3)
 {
 	__asm__ __volatile__ ("mov %0, %%cr3" : /* no output */ : "r" (cr3));
 	__asm__ __volatile__ ("jmp 1f\n\t1:");
+}
+
+static inline void move_to_user_mode(void *addr)
+{
+	__asm__ __volatile__ (
+		"movl %2, %%eax\n\t"
+		"movw %%ax, %%ds\n\t"
+		"movw %%ax, %%es\n\t"
+		"movw %%ax, %%fs\n\t"
+		"movw %%ax, %%gs\n\t"
+		"pushl %2\n\t"	// USER_DS
+		"pushl %%esp\n\t"
+		"pushfl\n\t"
+		"pushl %1\n\t"	// USER_CS
+		"pushl %0\n\t"	// addr
+		"iret\n\t"
+		: /* no output */
+		: "m" (addr), "i" (USER_CS), "i" (USER_DS)
+		: "eax"
+	);
 }
 
 #define PIC1		0x20
@@ -121,7 +158,7 @@ static inline void ack_slave_pic(void)
 
 static inline void mask_irq(int irq)
 {
-	extern unsigned short masked_irqs;
+	extern u16 masked_irqs;
 	if (masked_irqs & (1 << irq)) return;
 	masked_irqs |= (1 << irq);
 	if (irq < 8)
@@ -132,7 +169,7 @@ static inline void mask_irq(int irq)
 
 static inline void unmask_irq(int irq)
 {
-	extern unsigned short masked_irqs;
+	extern u16 masked_irqs;
 	if (!(masked_irqs & (1 << irq))) return;
 	masked_irqs &= ~(1 << irq);
 	if (irq < 8)

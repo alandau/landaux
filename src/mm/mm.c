@@ -3,6 +3,7 @@
 #include <video.h>
 #include <string.h>
 #include <kernel.h>
+#include <process.h>
 
 #define CMOS_REG		0x70
 #define CMOS_DATA		0x71
@@ -21,27 +22,25 @@
 
 typedef struct pte_struct		/* page table entry */
 {
-	unsigned char flags;
-	unsigned reserved : 4;		/* bits 8-12, includes Intel-Reserved and Avail */
-	unsigned frame : 20;
+	u8 flags;
+	u32 reserved : 4;		/* bits 8-12, includes Intel-Reserved and Avail */
+	u32 frame : 20;
 } pte_t;
 
-static unsigned long memsize;		/* in bytes */
-static unsigned long memused;		/* in bytes */
-static unsigned long bitmap[MAX_MEM_SIZE / PAGE_SIZE / 32];
-static int bitmap_size;				/* number of unsigned long's in mem_bitmap */
-static unsigned long kernel_size;	/* in bytes */
+static u32 memsize;		/* in bytes */
+static u32 memused;		/* in bytes */
+static u32 bitmap[MAX_MEM_SIZE / PAGE_SIZE / 32];
+static u32 bitmap_size;				/* number of unsigned long's in mem_bitmap */
 
 pte_t page_dir[PAGE_SIZE/sizeof(pte_t)] __attribute__ ((aligned (PAGE_SIZE)));
 pte_t kernel_page_table[PAGE_SIZE/sizeof(pte_t)] __attribute__ ((aligned (PAGE_SIZE)));
 pte_t first_mb_table[PAGE_SIZE/sizeof(pte_t)] __attribute__ ((aligned (PAGE_SIZE)));
-unsigned long stack[1024] __attribute__ ((aligned (PAGE_SIZE)));
 
 /* in bytes */
-static unsigned long __get_memsize(void)
+static u32 __get_memsize(void)
 {
-	unsigned short total;
-	unsigned char tmp;
+	u32 total;
+	u8 tmp;
 	outb(CMOS_REG, 0x18);
 	tmp = inb(CMOS_DATA);
 	total = tmp << 8;
@@ -52,7 +51,7 @@ static unsigned long __get_memsize(void)
 }
 
 /* returns frame number of allocated frame */
-static unsigned long alloc_phys_page(void)
+static u32 alloc_phys_page(void)
 {
 	int i, bit = 1, bit_offs = 0;
 	for (i = 0; i < bitmap_size; i++)
@@ -71,7 +70,7 @@ static unsigned long alloc_phys_page(void)
 	return i*32 + bit_offs;		/* 32 == bits in long */
 }
 
-static int have_enough_zeros(unsigned long *p, unsigned long start_bit, unsigned long max_bits, int zeros)
+static int have_enough_zeros(u32 *p, u32 start_bit, u32 max_bits, int zeros)
 {
 	for (; zeros && max_bits; max_bits--, zeros--)
 	{
@@ -82,7 +81,8 @@ static int have_enough_zeros(unsigned long *p, unsigned long start_bit, unsigned
 }
 
 // allocates count consecutive frames
-static unsigned long alloc_phys_pages(unsigned long count)
+// returns the frame number of the first page
+static u32 alloc_phys_pages(u32 count)
 {
 	int i, bit;
 	if (count == 0) return 0;
@@ -92,8 +92,8 @@ static unsigned long alloc_phys_pages(unsigned long count)
 		for (bit = 0; bit < 32; bit++)
 		{
 			if (!have_enough_zeros(bitmap, i*32 + bit, bitmap_size*32, count)) continue;
-			unsigned long pos = i*32;
-			unsigned long ret = pos + bit;
+			u32 pos = i*32;
+			u32 ret = pos + bit;
 			memused += (count << PAGE_SHIFT);
 			while (count--)
 			{
@@ -111,7 +111,7 @@ static unsigned long alloc_phys_pages(unsigned long count)
 	return 0;
 }
 
-static void free_phys_pages(unsigned long frame, unsigned long count)
+static void free_phys_pages(u32 frame, u32 count)
 {
 	if (count == 0) return;
 	if (frame/32 >= bitmap_size) BUG();
@@ -125,16 +125,16 @@ static void free_phys_pages(unsigned long frame, unsigned long count)
 }
 
 /* returns frame number of the zeroed allocated frame */
-static unsigned long alloc_zeroed_phys_page(void)
+static u32 alloc_zeroed_phys_page(void)
 {
-	unsigned long frame = alloc_phys_page();
+	u32 frame = alloc_phys_page();
 	if (!frame) return 0;
 	memset((void *)(PHYS_MEM + frame*PAGE_SIZE), 0, PAGE_SIZE);
 	return frame;
 }
 
 /* frees frame by number */
-static void free_phys_page(unsigned long frame)
+static void free_phys_page(u32 frame)
 {
 	int bit_offs, bit, i;
 	i = frame / 32;			/* 4 == sizeof(unsigned long) */
@@ -149,23 +149,23 @@ static void free_phys_page(unsigned long frame)
 
 /* allocates a pagetable page to be pointed by first
    returns the allocated frame number */
-static unsigned long alloc_page_table_page(pte_t *first)
+static u32 alloc_page_table_page(pte_t *first)
 {
 	if (first->flags & PTE_PRESENT) BUG();
-	unsigned long table = alloc_zeroed_phys_page();
+	u32 table = alloc_zeroed_phys_page();
 	if (!table) BUG();
-	first->flags = PTE_PRESENT | PTE_WRITE;
+	first->flags = PTE_PRESENT | PTE_WRITE | PTE_USER;
 	first->frame = table;
 	return table;
 }
 
 void init_mm(void)
 {
-	unsigned long i, kernel_pages;
+	u32 i, kernel_pages;
 	memsize = __get_memsize();
 	memused = 0;
 	extern unsigned char code[], end[];
-	kernel_size = end-code;
+	u32 kernel_size = end-code;
 	/* Assume memory size is a multiple of 128K */
 	bitmap_size = (memsize / PAGE_SIZE) / 32;
 	/* bitmap is in BSS and thus already zeroed */
@@ -192,16 +192,16 @@ void init_mm(void)
 		{
 			// allocate second-level page table
 			if (first->flags & PTE_PRESENT) BUG();
-			unsigned long table = alloc_phys_page();
+			u32 table = alloc_phys_page();
 			if (!table || (table<<PAGE_SHIFT) >= ONE_MB) BUG();
-			first->flags = PTE_PRESENT | PTE_WRITE;
+			first->flags = PTE_PRESENT | PTE_WRITE | PTE_USER;
 			first->frame = table;
 			// zero it
 			memset((void *)(table<<PAGE_SHIFT), 0, PAGE_SIZE);
 		}
 		// first->frame < 1MB, thus phys_addr=virt_addr
 		second = (pte_t *)(first->frame*PAGE_SIZE) + (i%1024);
-		second->flags = PTE_PRESENT | PTE_WRITE;
+		second->flags = PTE_PRESENT | PTE_WRITE | PTE_USER;
 		second->frame = i;
 	}
 
@@ -218,24 +218,24 @@ void init_mm(void)
    returns the virtual address of the newly allocated page */
 void *alloc_page(void)
 {
-	unsigned long phys = alloc_phys_page();
+	u32 phys = alloc_phys_page();
 	if (phys == 0) return NULL;
 	return ioremap(phys << PAGE_SHIFT, PAGE_SIZE);
 }
 
 // allocated count consecutive pages and maps them to the vma
-void *alloc_pages(unsigned long count)
+void *alloc_pages(u32 count)
 {
 	if (count == 0) return NULL;
 	if (count == 1) return alloc_page();
-	unsigned long phys = alloc_phys_pages(count);
+	u32 phys = alloc_phys_pages(count);
 	if (phys == 0) return NULL;
 	return ioremap(phys << PAGE_SHIFT, count << PAGE_SHIFT);
 }
 
 void free_page(void *address)
 {
-	unsigned long addr = (unsigned long)address;
+	u32 addr = (u32)address;
 	int i, j;
 	pte_t *first, *second;
 	if (addr & (PAGE_SIZE-1)) BUG();
@@ -250,14 +250,14 @@ void free_page(void *address)
 	free_phys_page(second->frame);
 }
 
-void free_pages(void *address, unsigned long count)
+void free_pages(void *address, u32 count)
 {
-	unsigned long __iounmap(void *address, unsigned long size);
+	u32 __iounmap(void *address, u32 size);
 
 	if (count == 0) return;
 	if (count == 1) free_page(address);
-	if ((unsigned long)address & (PAGE_SIZE-1)) BUG();
-	unsigned long frame = __iounmap(address, count << PAGE_SHIFT);
+	if ((u32)address & (PAGE_SIZE-1)) BUG();
+	u32 frame = __iounmap(address, count << PAGE_SHIFT);
 	if (frame == 0) BUG();
 	free_phys_pages(frame, count);
 }
@@ -265,17 +265,17 @@ void free_pages(void *address, unsigned long count)
 
 
 
-unsigned long get_mem_size()
+u32 get_mem_size()
 {
 	return memsize;
 }
 
-unsigned long get_used_mem()
+u32 get_used_mem()
 {
 	return memused;
 }
 
-unsigned long get_free_mem()
+u32 get_free_mem()
 {
 	return memsize - memused;
 }
@@ -287,7 +287,7 @@ unsigned long get_free_mem()
 int get_next_pte(pte_t *first1, pte_t *second1, pte_t **first2, pte_t **second2)
 {
 	second1++;
-	if (!((unsigned long)second1 & (PAGE_SIZE-1)))		// increment first
+	if (!((u32)second1 & (PAGE_SIZE-1)))		// increment first
 	{
 		*first2 = first1+1;
 		*second2 = NULL;
@@ -306,13 +306,13 @@ int get_next_pte(pte_t *first1, pte_t *second1, pte_t **first2, pte_t **second2)
 }
 
 
-void *ioremap(unsigned long phys_addr, unsigned long size)
+void *ioremap(u32 phys_addr, u32 size)
 {
 	if (size == 0) return NULL;
-	unsigned long frame = phys_addr >> PAGE_SHIFT;
+	u32 frame = phys_addr >> PAGE_SHIFT;
 	size += phys_addr & (PAGE_SIZE-1);
 	size += PAGE_SIZE-1;
-	unsigned long count = size >> PAGE_SHIFT;
+	u32 count = size >> PAGE_SHIFT;
 	if (count > PAGE_SIZE/sizeof(pte_t)) return NULL;
 
 	// should map count frames starting at frame
@@ -323,7 +323,7 @@ void *ioremap(unsigned long phys_addr, unsigned long size)
 	{
 		if (!(second->flags & PTE_PRESENT))
 		{
-			unsigned long i;
+			u32 i;
 			pte_t *old_first = first, *old_second = second, *new_first, *new_second;
 			// start the loop from 1 since we know that second is not present
 			for (i=1; i<count; i++)
@@ -346,16 +346,16 @@ void *ioremap(unsigned long phys_addr, unsigned long size)
 				old_second = second;
 				for (i=0; i<count; i++)
 				{
-					second->flags = PTE_PRESENT | PTE_WRITE;
+					second->flags = PTE_PRESENT | PTE_WRITE | PTE_USER;
 					second->frame = frame++;
 					if (!get_next_pte(first, second, &new_first, &new_second)) return NULL;
 					// new_first was allocated if necessary, thus new_second!=NULL
 					first = new_first;
 					second = new_second;
 				}
-				unsigned long offset = phys_addr & (PAGE_SIZE-1);
+				u32 offset = phys_addr & (PAGE_SIZE-1);
 				i = old_first - page_dir;
-				unsigned long j = ((unsigned long)old_second & (PAGE_SIZE-1)) / sizeof(pte_t);
+				u32 j = ((u32)old_second & (PAGE_SIZE-1)) / sizeof(pte_t);
 				return (void *)((((i<<10) | j) << PAGE_SHIFT) | offset);
 			}
 			// if got here, then not found count free pages, and not allocated 2nd level page tables
@@ -374,20 +374,20 @@ void *ioremap(unsigned long phys_addr, unsigned long size)
 }
 
 // returns the physical address of the page pointed to by address
-unsigned long __iounmap(void *address, unsigned long size)
+u32 __iounmap(void *address, u32 size)
 {
 	if (size == 0) return 0;
-	unsigned long addr = (unsigned long)address;
-	unsigned long page = addr >> PAGE_SHIFT;
+	u32 addr = (u32)address;
+	u32 page = addr >> PAGE_SHIFT;
 	size += addr & (PAGE_SIZE-1);
 	size += PAGE_SIZE-1;
-	unsigned long count = size >> PAGE_SHIFT;
+	u32 count = size >> PAGE_SHIFT;
 	if (count > PAGE_SIZE/sizeof(pte_t)) BUG();
 	int i = page>>10, j = page & 0x03FF;
 	pte_t *first = &page_dir[i];
 	if (!(first->flags & PTE_PRESENT)) BUG();
 	pte_t *second = (pte_t *)(PHYS_MEM + (first->frame<<PAGE_SHIFT)) + j;
-	unsigned long ret = second->frame;
+	u32 ret = second->frame;
 	while (count--)
 	{
 		if (!(second->flags & PTE_PRESENT)) BUG();
@@ -401,7 +401,47 @@ unsigned long __iounmap(void *address, unsigned long size)
 	return ret;
 }
 
-void iounmap(void *address, unsigned long size)
+void iounmap(void *address, u32 size)
 {
 	__iounmap(address, size);
+}
+
+u32 virt_to_phys(void *address)
+{
+	u32 addr = (u32)address;
+	u32 offset = addr & (PAGE_SIZE-1);
+	addr >>= PAGE_SHIFT;
+	u32 i = addr >> 10;
+	u32 j = addr & 0x03FF;
+	pte_t *first = &((pte_t *)current->mm)[i];
+	if (!(first->flags & PTE_PRESENT)) BUG();
+	pte_t *second = (pte_t *)(PHYS_MEM + (first->frame<<PAGE_SHIFT)) + j;
+	if (!(second->flags & PTE_PRESENT)) BUG();
+	return (second->frame << PAGE_SHIFT) + offset;
+}
+
+void *clone_mm(void *mm)
+{
+	pte_t *old_pg = (pte_t *)mm, *new_pg = alloc_page();
+	if (!new_pg) return NULL;
+	memcpy(new_pg, old_pg, PAGE_SIZE);
+	int i, j;
+	for (i=0; i<PAGE_SIZE/sizeof(pte_t); i++)
+	{
+		if (!(old_pg[i].flags & PTE_PRESENT)) continue;
+		pte_t *old_second = (pte_t *)(PHYS_MEM + (old_pg[i].frame<<PAGE_SHIFT));
+		pte_t *new_second = (pte_t *)alloc_page();
+		if (!new_second) return NULL;
+		new_pg[i].frame = virt_to_phys(new_second);
+		memcpy(new_second, old_second, PAGE_SIZE);
+		for (j=0; j<PAGE_SIZE; j++)
+		{
+			if (!(new_second[j].flags & PTE_PRESENT)) continue;
+			void *old_page = (void *)(PHYS_MEM + (old_second[j].frame<<PAGE_SHIFT));
+			void *new_page = alloc_page();
+			if (!new_page) return NULL;
+			memcpy(new_page, old_page, PAGE_SIZE);
+		}
+	}
+	return new_pg;
 }

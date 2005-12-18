@@ -4,13 +4,13 @@
 #include <irq.h>
 #include <kernel.h>
 
-unsigned long jiffies;
+volatile u32 jiffies;
 
 typedef struct
 {
 	irqhandler_t handler;
 	void *data;
-	unsigned long count;
+	u32 count;
 } irq_t;
 
 static irq_t irqs[16];
@@ -34,7 +34,7 @@ void do_irq(regs_t r)
 
 int register_irq(int irq, irqhandler_t handler, void *data)
 {
-	unsigned long flags;
+	u32 flags;
 	if (irqs[irq].handler) return -1;
 	flags = save_flags();
 	irqs[irq].data = data;
@@ -47,7 +47,7 @@ int register_irq(int irq, irqhandler_t handler, void *data)
 
 int release_irq(int irq)
 {
-	unsigned long flags;
+	u32 flags;
 	if (irqs[irq].handler == NULL) return -1;
 	flags = save_flags();
 	irqs[irq].handler = NULL;
@@ -59,10 +59,12 @@ int release_irq(int irq)
 void do_timer(void *data)
 {
 	jiffies++;
+	void scheduler_tick(void);
+	scheduler_tick();
 }
 
 void do_keyboard(void *data)
 {
-	unsigned char key = inb(0x60);
+	u8 key = inb(0x60);
 	printk("keyboard: %s - %d\n", key&0x80?"RELEASED":"PRESSED ",key&0x7F);
 }

@@ -2,6 +2,42 @@
 CPU 386
 EXTERN kernel_start
 
+%macro SAVE_ALL 0
+; eax is saved in int_common
+push gs
+push fs
+push es
+push ds
+push ebp
+push edi
+push esi
+push edx
+push ecx
+push ebx
+%endmacro
+
+%macro RESTORE_ALL 0
+pop ebx
+pop ecx
+pop edx
+pop esi
+pop edi
+pop ebp
+pop ds
+pop es
+pop fs
+pop gs
+pop eax
+%endmacro
+
+KERNEL_CS equ 0x0008
+KERNEL_DS equ 0x0010
+LDT_SEL   equ 0x0018
+
+USER_CS   equ 0x000F
+USER_DS   equ 0x0017
+
+
 ; we load the kernel at virtual C0000000 and physical 1000
 ; thus the segment base must be 40001000
 
@@ -10,7 +46,6 @@ EXTERN kernel_start
 %define KERNEL_PHYS_ADDR	0x1000
 %define PHYS_MEM_VIRT_ADDR	0xF0000000
 
-; %define MEM_SIZE		(32*1024*1024)
 
 EXTERN page_dir
 EXTERN kernel_page_table
@@ -27,11 +62,18 @@ mov fs, ax
 mov byte [fs:0], '1'
 
 
-; load GDT and IDT (assumes cs=0)
+; load GDT, LDT and IDT (assumes cs=0)
 mov ebx, SEG_BASE+gdtr
 lgdt [cs:ebx]
 mov ebx, SEG_BASE+idtr
 lidt [cs:ebx]
+; patch LDT descriptor with the address of the LDT segment
+mov ebx, SEG_BASE+ldt_des
+mov eax, SEG_BASE+ldt
+mov [cs:ebx+2], ax
+shr eax, 16
+mov [cs:ebx+4], al
+mov [cs:ebx+7], ah
 mov byte [fs:0], '2'
 
 ; switch to PM
@@ -46,6 +88,8 @@ db 0xEA
 dd SEG_BASE+start32
 dw KERNEL_CS
 
+GLOBAL ldt_des, tss_des
+
 align 4
 gdtr dw gdt_size
      dd SEG_BASE+gdt
@@ -54,13 +98,19 @@ code32  dw 0xFFFF,0x0000
         db 0x00,0x9A,0xCF,0x00
 data32  dw 0xFFFF,0x0000
         db 0x00,0x92,0xCF,0x00
-stack32 dw 0xFFFF,0x0000
-	db 0x00,0x92,0xCF,0x00
+ldt_des dw ldt_size,0
+        db 0,0x82,0x00,0
+tss_des dw 0x0067,0
+        db 0,0x89,0x00,0
 gdt_size equ $-gdt-1
 
-KERNEL_CS equ 0x0008
-KERNEL_DS equ 0x0010
-KERNEL_SS equ 0x0018
+align 4
+ldt     dw 0,0,0,0
+usrcode dw 0xFFFF,0x0000
+        db 0x00,0xFA,0xCF,0x00
+usrdata dw 0xFFFF,0x0000
+        db 0x00,0xF2,0xCF,0x00
+ldt_size equ $-ldt-1
 
 
 
@@ -68,6 +118,9 @@ KERNEL_SS equ 0x0018
 ; in PM!!!
 [BITS 32]
 start32:
+mov ax, LDT_SEL
+lldt ax
+
 mov byte [fs:0], '4'
 xor eax, eax
 mov ax, KERNEL_DS		; data descriptor
@@ -76,7 +129,7 @@ mov es, ax
 mov fs, ax
 mov gs, ax
 mov byte [fs:0xB8000], '5'
-mov ax, KERNEL_SS
+mov ax, KERNEL_DS
 mov ss, ax
 ; initialize esp after paging is enabled
 mov eax, [SEG_BASE+data_magic]
@@ -127,15 +180,15 @@ rep stosd
 
 ; make the pde corresponding to the kernel addresses to point to the page table. 3=ring0 + present + write
 mov eax, SEG_BASE+first_mb_table
-or eax, 3
+or eax, 7
 mov dword [SEG_BASE+page_dir], eax
 mov eax, SEG_BASE+kernel_page_table
-or eax, 3
+or eax, 7
 mov dword [SEG_BASE+page_dir + KERNEL_VIRT_ADDR/(4*1024*1024)*4], eax
 
 ; map all memory
 ; mov edi, PAGE_DIR + (PHYS_MEM_VIRT_ADDR / (4*1024*1024) * 4)
-; mov eax, ALL_MEM_TABLES | 3
+; mov eax, ALL_MEM_TABLES | 7
 ; mov ecx, MEM_SIZE / (4*1024*1024)
 ; map_page_dir:
 ; stosd
@@ -145,7 +198,7 @@ mov dword [SEG_BASE+page_dir + KERNEL_VIRT_ADDR/(4*1024*1024)*4], eax
 ; fill in page table to map kernel addresses
 EXTERN end
 mov edi, SEG_BASE+kernel_page_table
-mov eax, KERNEL_PHYS_ADDR | 3
+mov eax, KERNEL_PHYS_ADDR | 7
 mov ecx, end
 sub ecx, KERNEL_VIRT_ADDR - 4095
 shr ecx, 12			; ecx = num pages in kernel
@@ -156,7 +209,7 @@ loop map_kernel
 
 ; map first 1MB
  mov edi, SEG_BASE+first_mb_table
- mov eax, 0 | 3
+ mov eax, 0 | 7
  mov ecx, 1024*1024/4096		; ecx = num pages in 1MB
  map_1mb:
  stosd
@@ -184,10 +237,19 @@ jmp $+2
 jmp KERNEL_CS:paging_enabled
 
 paging_enabled:
-EXTERN stack
+EXTERN idle_task_stack
 %define STACK_SIZE 4096
-mov esp, stack + STACK_SIZE
+mov esp, idle_task_stack + STACK_SIZE
 mov byte [0xb8000], '*'
+push ss
+push esp
+pushf
+push cs
+call .1
+.1:
+push 0			; error code
+push eax		; to make the stack look like a regular kernel mode stack
+SAVE_ALL
 call kernel_start
 jmp $
 
@@ -199,11 +261,10 @@ jmp $
     dw (%1 - $$ + KERNEL_VIRT_ADDR) >> 16
 %endmacro
 
-%macro setup_int_handler 1
-intr%{1}_handler:
-    pusha
-    push long 0x%{1}
-    jmp int_common
+%macro setup_syscall 1
+    dw (%1 - $$ + KERNEL_VIRT_ADDR) & 0xFFFF, USER_CS
+    db 0,0xEF
+    dw (%1 - $$ + KERNEL_VIRT_ADDR) >> 16
 %endmacro
 
 align 4
@@ -249,6 +310,8 @@ setup_int irq12
 setup_int irq13
 setup_int irq14
 setup_int irq15
+
+setup_syscall system_call
 idt_size equ $-idt-1
 
 DS_MAGIC equ 0x10293847
@@ -285,33 +348,7 @@ int_page_fault:			call_int_error do_page_fault
 int_coprocessor_err:		call_int_no_error do_coprocessor_err
 int_reserved:			call_int_no_error do_reserved
 
-%macro SAVE_ALL 0
-; eax is saved in int_common
-push gs
-push fs
-push es
-push ds
-push ebp
-push edi
-push esi
-push edx
-push ecx
-push ebx
-%endmacro
 
-%macro RESTORE_ALL 0
-pop ebx
-pop ecx
-pop edx
-pop esi
-pop edi
-pop ebp
-pop ds
-pop es
-pop fs
-pop gs
-pop eax
-%endmacro
 
 EAX_OFFSET equ 0x28		; offset of eax into the stack
 
@@ -342,22 +379,23 @@ irq %+ i: call_irq i
 %endrep
 
 
-;irq0: call_irq do_timer
-;irq1: call_int_no_error do_keyboard
-;irq2: call_int_no_error do_irq2
-;irq3: call_int_no_error do_serial1
-;irq4: call_int_no_error do_serial0
-;irq5: call_int_no_error do_irq5
-;irq6: call_int_no_error do_fdd
-;irq7: call_int_no_error do_irq7
-;irq8: call_int_no_error do_irq8
-;irq9: call_int_no_error do_irq9
-;irq10: call_int_no_error do_irq10
-;irq11: call_int_no_error do_irq11
-;irq12: call_int_no_error do_irq12
-;irq13: call_int_no_error do_irq13
-;irq14: call_int_no_error do_hdd
-;irq15: call_int_no_error do_irq15
+EXTERN fork
+GLOBAL ret_from_sys_call
+
+system_call:
+;	push ss
+;	push esp
+	push 0		; error code
+	push eax
+	SAVE_ALL
+	call fork
+
+ret_from_sys_call:
+	RESTORE_ALL
+	add esp, 4	; error code
+	iret
+
+
 
 ; stack layout on enter to do_something
 

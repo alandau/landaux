@@ -4,26 +4,26 @@
 #include <string.h>
 #include <mm.h>
 
-static unsigned short cursor = 0;
+static u16 cursor = 0;
 static char *screen = (char *)0xB8000;
-static unsigned char color = 0x07;
+static u8 color = 0x07;
 
 void init_video(void)
 {
-	unsigned char tmp;
+	u8 tmp;
 	outb(0x3D4, 0x0F);
 	tmp = inb(0x3D5);
 	outb(0x3D4, 0x0E);
 	cursor = (inb(0x3D5) << 8) + tmp;
-	screen = ioremap((unsigned long)screen, ROWS*COLUMNS*2);
+	screen = ioremap((u32)screen, ROWS*COLUMNS*2);
 }
 
-unsigned char get_color(void)
+u8 get_color(void)
 {
 	return color;
 }
 
-void set_color(unsigned char c)
+void set_color(u8 c)
 {
 	color = c;
 }
@@ -92,10 +92,10 @@ static void print_str(const char *s)
 	}
 }
 
-static int sprintf_uint(char *buf, unsigned long value)
+static int sprintf_uint(char *buf, u32 value)
 {
 #define ROUND_LONG 1000000000UL
-	unsigned long maxlong = ROUND_LONG;
+	u32 maxlong = ROUND_LONG;
 	int count = 0, flag = 0;
 	if (value == 0)
 	{
@@ -104,7 +104,7 @@ static int sprintf_uint(char *buf, unsigned long value)
 	}
 	while (maxlong)
 	{
-		unsigned int c = value / maxlong;
+		u32 c = value / maxlong;
 		if (flag || c)
 		{
 			flag = 1;
@@ -118,10 +118,10 @@ static int sprintf_uint(char *buf, unsigned long value)
 #undef ROUND_LONG
 }
 
-static int sprintf_hex(char *buf, unsigned long value, int small, int leading_zero)
+static int sprintf_hex(char *buf, u32 value, int small, int leading_zero)
 {
 #define ROUND_LONG 0x10000000UL
-	unsigned long maxlong = ROUND_LONG;
+	u32 maxlong = ROUND_LONG;
 	int count = 0;
 	char hex[2][17] = {{"0123456789ABCDEF"}, {"0123456789abcdef"}};
 	if (value == 0)
@@ -139,7 +139,7 @@ static int sprintf_hex(char *buf, unsigned long value, int small, int leading_ze
 	}
 	while (maxlong)
 	{
-		unsigned int c = value / maxlong;
+		u32 c = value / maxlong;
 		if (leading_zero || c)
 		{
 			leading_zero = 1;

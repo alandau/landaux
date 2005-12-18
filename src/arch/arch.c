@@ -33,7 +33,7 @@ void init_pic(void)
 /* remap PIT to make interrupts at HZ frequency */
 void init_pit(void)
 {
-	unsigned short counter = PIT_FREQ / HZ;
+	u16 counter = PIT_FREQ / HZ;
 	outb(PIT_CONTROL, PIT_CONTROL_VALUE);
 	outb(PIT_CHANNEL0, counter & 0xFF);
 	outb(PIT_CHANNEL0, counter >> 8);

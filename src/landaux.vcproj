@@ -129,7 +129,16 @@
 					RelativePath=".\include\kernel.h">
 				</File>
 				<File
+					RelativePath=".\include\list.h">
+				</File>
+				<File
 					RelativePath=".\include\mm.h">
+				</File>
+				<File
+					RelativePath=".\include\process.h">
+				</File>
+				<File
+					RelativePath=".\include\sched.h">
 				</File>
 				<File
 					RelativePath=".\include\stdarg.h">
@@ -154,6 +163,9 @@
 					RelativePath=".\kernel\debug.c">
 				</File>
 				<File
+					RelativePath=".\kernel\init.c">
+				</File>
+				<File
 					RelativePath=".\kernel\interrupt.c">
 				</File>
 				<File
@@ -164,6 +176,12 @@
 				</File>
 				<File
 					RelativePath=".\kernel\Makefile">
+				</File>
+				<File
+					RelativePath=".\kernel\process.c">
+				</File>
+				<File
+					RelativePath=".\kernel\sched.c">
 				</File>
 				<File
 					RelativePath=".\kernel\setup.asm">
