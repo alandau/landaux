@@ -54,6 +54,9 @@ EXTERN first_mb_table
 ;FIRST_MB	equ	0x102000	; 1MB + 8KB
 ;ALL_MEM_TABLES	equ	0x103000	; 1MB + 12KB
 
+EXTERN global_flags
+EXTERN schedule
+
 GLOBAL entry
 entry:
 cli
@@ -117,6 +120,12 @@ ldt_size equ $-ldt-1
 
 ; in PM!!!
 [BITS 32]
+GLOBAL setup_idtr
+setup_idtr:
+;mov eax, idtr
+lidt [idtr]
+ret
+
 start32:
 mov ax, LDT_SEL
 lldt ax
@@ -254,7 +263,6 @@ call kernel_start
 jmp $
 
 
-
 %macro setup_int 1
     dw (%1 - $$ + KERNEL_VIRT_ADDR) & 0xFFFF, KERNEL_CS
     db 0,0x8E
@@ -262,14 +270,15 @@ jmp $
 %endmacro
 
 %macro setup_syscall 1
-    dw (%1 - $$ + KERNEL_VIRT_ADDR) & 0xFFFF, USER_CS
+    dw (%1 - $$ + KERNEL_VIRT_ADDR) & 0xFFFF, KERNEL_CS
     db 0,0xEF
     dw (%1 - $$ + KERNEL_VIRT_ADDR) >> 16
 %endmacro
 
 align 4
 idtr dw idt_size
-     dd SEG_BASE+idt
+     dd idt
+;     dd SEG_BASE+idt
 idt:
 setup_int int_divide				; 0
 setup_int int_debug					; 1
@@ -366,9 +375,7 @@ push do_irq
 SAVE_ALL
 xchg eax, [esp+EAX_OFFSET]	; now stack contains eax at offset EAX_OFFSET
 call eax			; and eax contains function to call
-RESTORE_ALL
-add esp, 4			; discard error_code
-iret
+jmp ret_from_interrupt
 %endmacro
 
 EXTERN do_irq
@@ -379,18 +386,43 @@ irq %+ i: call_irq i
 %endrep
 
 
-EXTERN fork
+EXTERN sys_call_table
 GLOBAL ret_from_sys_call
+%define MAX_SYSCALLS 256
 
+; sys_something(ebx, ecx, edx, esi, edi, ebp)
 system_call:
-;	push ss
-;	push esp
+	or dword [global_flags], 1<<1			; in syscall
 	push 0		; error code
 	push eax
 	SAVE_ALL
-	call fork
+	cmp eax, MAX_SYSCALLS
+	jnb bad_sys
+	lea eax, [sys_call_table+4*eax]
+	push ebp
+	push edi
+	push esi
+	push edx
+	push ecx
+	push ebx
+	call [eax]
+	add esp, 6*4
+	mov [esp+EAX_OFFSET], eax
+	jmp ret_from_sys_call
 
+bad_sys:
+	mov dword [esp+EAX_OFFSET], -1
+
+ret_from_interrupt:
+	test dword [global_flags], 1<<1			; in syscall
+	jnz restore_all
 ret_from_sys_call:
+	test dword [global_flags], 1<<0			; need resched
+	jz .1
+	call schedule
+.1:
+	and dword [global_flags], ~(1<<1)		; now not in syscall
+restore_all:
 	RESTORE_ALL
 	add esp, 4	; error code
 	iret

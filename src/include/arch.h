@@ -5,6 +5,7 @@
 
 #define KERNEL_CS		0x0008
 #define KERNEL_DS		0x0010
+#define LDT_SELECTOR	0x0018
 #define TSS_SELECTOR	0x0020
 
 #define USER_CS			0x000F
@@ -109,22 +110,23 @@ static inline void set_cr3(u32 cr3)
 	__asm__ __volatile__ ("jmp 1f\n\t1:");
 }
 
-static inline void move_to_user_mode(void *addr)
+static inline void move_to_user_mode(void)
 {
 	__asm__ __volatile__ (
-		"movl %2, %%eax\n\t"
+		"movl %1, %%eax\n\t"	// USER_DS
 		"movw %%ax, %%ds\n\t"
 		"movw %%ax, %%es\n\t"
 		"movw %%ax, %%fs\n\t"
 		"movw %%ax, %%gs\n\t"
-		"pushl %2\n\t"	// USER_DS
+		"pushl %1\n\t"			// USER_DS
 		"pushl %%esp\n\t"
 		"pushfl\n\t"
-		"pushl %1\n\t"	// USER_CS
-		"pushl %0\n\t"	// addr
+		"pushl %0\n\t"			// USER_CS
+		"pushl $1f\n\t"
 		"iret\n\t"
+		"1:"
 		: /* no output */
-		: "m" (addr), "i" (USER_CS), "i" (USER_DS)
+		: "i" (USER_CS), "i" (USER_DS)
 		: "eax"
 	);
 }

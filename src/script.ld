@@ -33,7 +33,7 @@ SECTIONS
 	bss = .; _bss = .;
 	*(.bss)
 	. = ALIGN(4);
-	bss_end = .;
     }
+    bss_end = .;
     end = .; _end = .;
 }

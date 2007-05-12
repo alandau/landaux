@@ -16,11 +16,11 @@ CC=gcc
 AS=nasm -f elf
 INCLUDE=$(TOPDIR)/include
 CFLAGS := -I$(INCLUDE) -O2 -finline-functions -nostdinc -Wall -Wstrict-prototypes
-ASFLAGS := 
+ASFLAGS:= 
 
 export CC AS CFLAGS ASFLAGS
 
-SUBDIRS=kernel arch mm
+SUBDIRS:=kernel arch mm drivers
 .PHONY: scripts
 .PHONY: dep boot
 

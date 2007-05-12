@@ -1,70 +1,116 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="7.10"
+	Version="8.00"
 	Name="landaux"
 	ProjectGUID="{2D1603B4-FAFD-4570-945A-37A56E5DCC86}"
-	Keyword="Win32Proj">
+	Keyword="Win32Proj"
+	>
 	<Platforms>
 		<Platform
-			Name="Win32"/>
+			Name="Win32"
+		/>
 	</Platforms>
+	<ToolFiles>
+	</ToolFiles>
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
 			OutputDirectory="Debug"
 			IntermediateDirectory="Debug"
 			ConfigurationType="0"
-			CharacterSet="2">
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			CharacterSet="2"
+			>
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="plink -load linux &quot;cd os/landaux/trunk/src; make&quot;"/>
+				BuildCommandLine="plink -load linux &quot;cd os/landaux/trunk/src; make&quot;"
+				ReBuildCommandLine=""
+				CleanCommandLine=""
+				Output=""
+				PreprocessorDefinitions=""
+				IncludeSearchPath=""
+				ForcedIncludes=""
+				AssemblySearchPath=""
+				ForcedUsingAssemblies=""
+				CompileAsManaged=""
+			/>
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
 			OutputDirectory="Release"
 			IntermediateDirectory="Release"
 			ConfigurationType="1"
-			CharacterSet="2">
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
+			CharacterSet="2"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+			/>
 			<Tool
 				Name="VCCLCompilerTool"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
-				RuntimeLibrary="4"
+				RuntimeLibrary="0"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				Detect64BitPortabilityProblems="TRUE"
-				DebugInformationFormat="3"/>
+				Detect64BitPortabilityProblems="true"
+				DebugInformationFormat="3"
+			/>
 			<Tool
-				Name="VCCustomBuildTool"/>
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
 			<Tool
 				Name="VCLinkerTool"
 				OutputFile="$(OutDir)/landaux.exe"
 				LinkIncremental="1"
-				GenerateDebugInformation="TRUE"
+				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
-				TargetMachine="1"/>
+				TargetMachine="1"
+			/>
 			<Tool
-				Name="VCMIDLTool"/>
+				Name="VCALinkTool"
+			/>
 			<Tool
-				Name="VCPostBuildEventTool"/>
+				Name="VCManifestTool"
+			/>
 			<Tool
-				Name="VCPreBuildEventTool"/>
+				Name="VCXDCMakeTool"
+			/>
 			<Tool
-				Name="VCPreLinkEventTool"/>
+				Name="VCBscMakeTool"
+			/>
 			<Tool
-				Name="VCResourceCompilerTool"/>
+				Name="VCFxCopTool"
+			/>
 			<Tool
-				Name="VCWebServiceProxyGeneratorTool"/>
+				Name="VCAppVerifierTool"
+			/>
 			<Tool
-				Name="VCXMLDataGeneratorTool"/>
+				Name="VCWebDeploymentTool"
+			/>
 			<Tool
-				Name="VCWebDeploymentTool"/>
-			<Tool
-				Name="VCManagedWrapperGeneratorTool"/>
-			<Tool
-				Name="VCAuxiliaryManagedWrapperGeneratorTool"/>
+				Name="VCPostBuildEventTool"
+			/>
 		</Configuration>
 	</Configurations>
 	<References>
@@ -73,145 +119,204 @@
 		<Filter
 			Name="Source Files"
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx"
-			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}">
+			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
+			>
 			<Filter
 				Name="arch"
-				Filter="">
+				>
 				<File
-					RelativePath=".\arch\arch.c">
+					RelativePath=".\arch\arch.c"
+					>
 				</File>
 				<File
-					RelativePath=".\arch\Makefile">
+					RelativePath=".\arch\Makefile"
+					>
 				</File>
 			</Filter>
 			<Filter
 				Name="boot"
-				Filter="">
+				>
 				<File
-					RelativePath=".\boot\boot.asm">
+					RelativePath=".\boot\boot.asm"
+					>
 				</File>
 				<File
-					RelativePath=".\boot\Makefile">
+					RelativePath=".\boot\Makefile"
+					>
 				</File>
 			</Filter>
 			<Filter
 				Name="scripts"
-				Filter="">
+				>
 				<File
-					RelativePath=".\scripts\cpboot.c">
+					RelativePath=".\scripts\cpboot.c"
+					>
 				</File>
 				<File
-					RelativePath=".\scripts\Makefile">
+					RelativePath=".\scripts\Makefile"
+					>
 				</File>
 				<File
-					RelativePath=".\scripts\patch_boot.c">
+					RelativePath=".\scripts\patch_boot.c"
+					>
 				</File>
 				<File
-					RelativePath=".\scripts\syms.c">
+					RelativePath=".\scripts\syms.c"
+					>
 					<FileConfiguration
-						Name="Release|Win32">
+						Name="Release|Win32"
+						>
 						<Tool
 							Name="VCCLCompilerTool"
-							ObjectFile="$(IntDir)/$(InputName)1.obj"/>
+							ObjectFile="$(IntDir)/$(InputName)1.obj"
+						/>
 					</FileConfiguration>
 				</File>
 			</Filter>
 			<Filter
 				Name="include"
-				Filter="">
+				>
 				<File
-					RelativePath=".\include\arch.h">
+					RelativePath=".\include\arch.h"
+					>
 				</File>
 				<File
-					RelativePath=".\include\irq.h">
+					RelativePath=".\include\block.h"
+					>
 				</File>
 				<File
-					RelativePath=".\include\kernel.h">
+					RelativePath=".\include\irq.h"
+					>
 				</File>
 				<File
-					RelativePath=".\include\list.h">
+					RelativePath=".\include\kernel.h"
+					>
 				</File>
 				<File
-					RelativePath=".\include\mm.h">
+					RelativePath=".\include\list.h"
+					>
 				</File>
 				<File
-					RelativePath=".\include\process.h">
+					RelativePath=".\include\mm.h"
+					>
 				</File>
 				<File
-					RelativePath=".\include\sched.h">
+					RelativePath=".\include\process.h"
+					>
 				</File>
 				<File
-					RelativePath=".\include\stdarg.h">
+					RelativePath=".\include\sched.h"
+					>
 				</File>
 				<File
-					RelativePath=".\include\stddef.h">
+					RelativePath=".\include\stdarg.h"
+					>
 				</File>
 				<File
-					RelativePath=".\include\string.h">
+					RelativePath=".\include\stddef.h"
+					>
 				</File>
 				<File
-					RelativePath=".\include\syms.h">
+					RelativePath=".\include\string.h"
+					>
 				</File>
 				<File
-					RelativePath=".\include\video.h">
+					RelativePath=".\include\syms.h"
+					>
+				</File>
+				<File
+					RelativePath=".\include\video.h"
+					>
 				</File>
 			</Filter>
 			<Filter
 				Name="kernel"
-				Filter="">
+				>
 				<File
-					RelativePath=".\kernel\debug.c">
+					RelativePath=".\kernel\debug.c"
+					>
 				</File>
 				<File
-					RelativePath=".\kernel\init.c">
+					RelativePath=".\drivers\floppy.c"
+					>
 				</File>
 				<File
-					RelativePath=".\kernel\interrupt.c">
+					RelativePath=".\kernel\interrupt.c"
+					>
 				</File>
 				<File
-					RelativePath=".\kernel\irq.c">
+					RelativePath=".\kernel\irq.c"
+					>
 				</File>
 				<File
-					RelativePath=".\kernel\main.c">
+					RelativePath=".\kernel\main.c"
+					>
 				</File>
 				<File
-					RelativePath=".\kernel\Makefile">
+					RelativePath=".\kernel\Makefile"
+					>
 				</File>
 				<File
-					RelativePath=".\kernel\process.c">
+					RelativePath=".\kernel\process.c"
+					>
 				</File>
 				<File
-					RelativePath=".\kernel\sched.c">
+					RelativePath=".\kernel\sched.c"
+					>
 				</File>
 				<File
-					RelativePath=".\kernel\setup.asm">
+					RelativePath=".\kernel\setup.asm"
+					>
 				</File>
 				<File
-					RelativePath=".\kernel\syms.c">
+					RelativePath=".\kernel\syms.c"
+					>
 				</File>
 				<File
-					RelativePath=".\kernel\video.c">
+					RelativePath=".\kernel\syscall.asm"
+					>
+				</File>
+				<File
+					RelativePath=".\kernel\video.c"
+					>
 				</File>
 			</Filter>
 			<Filter
 				Name="mm"
-				Filter="">
+				>
 				<File
-					RelativePath=".\mm\Makefile">
+					RelativePath=".\mm\Makefile"
+					>
 				</File>
 				<File
-					RelativePath=".\mm\mm.c">
+					RelativePath=".\mm\mm.c"
+					>
 				</File>
+			</Filter>
+			<Filter
+				Name="drivers"
+				>
+				<Filter
+					Name="block"
+					>
+					<File
+						RelativePath=".\drivers\block\block.c"
+						>
+					</File>
+				</Filter>
 			</Filter>
 		</Filter>
 		<File
-			RelativePath=".\Makefile">
+			RelativePath=".\Makefile"
+			>
 		</File>
 		<File
-			RelativePath=".\Rules.make">
+			RelativePath=".\Rules.make"
+			>
 		</File>
 		<File
-			RelativePath=".\script.ld">
+			RelativePath=".\script.ld"
+			>
 		</File>
 	</Files>
 	<Globals>

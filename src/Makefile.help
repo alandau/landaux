@@ -5,11 +5,11 @@ include $(dir)/Makefile
 MAINOBJ := $(dir)/all.o
 
 build: $(MAINOBJ)
-	$(call recurse,build)
 
 $(MAINOBJ): $(addprefix $(dir)/,$(OBJS))
+	$(call recurse,build)
 	echo "Linking $(MAINOBJ) ..."
-	$(LD) $(LDFLAGS) -r -o $@ $^
+	$(LD) $(LDFLAGS) -r -o $@ $^ $(addprefix $(dir)/,$(addsuffix /all.o,$(SUBDIRS)))
 
 .PHONY: dep
 dep:

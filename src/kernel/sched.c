@@ -1,31 +1,44 @@
 #include <sched.h>
 #include <process.h>
 #include <video.h>
+#include <mm.h>
+
+volatile u32 global_flags;
 
 void scheduler_tick(void)
 {
+	u32 flags;
+	asm ("pushfl;popl %0": "=r"(flags));
+	if (flags & (1<<14)) printk("NT is set\nNT is set\nNT is set\n");
 	task_t *p = current;
-	if (--p->timeslice)
+	if (!--p->timeslice)
 	{
-		p->need_resched = 1;
-		p->timeslice = 100;
+		set_need_resched();
+		p->timeslice = 20;
 	}
 }
 
-#define context_switch(prev, next)								\
+extern tss_t tss;
+
+#define context_switch(prev, next) do {							\
+	tss.esp0 = (u32)next + sizeof(task_stack_t);				\
 	__asm__ __volatile__ (										\
 		"pusha\n\t"												\
 		"movl %%esp, %0\n\t"									\
 		"movl %2, %%esp\n\t"									\
 		"movl $1f, %1\n\t"										\
+		"movl %4, %%cr3\n\t"									\
+		"pushfl\n\t"											\
+		"pushl %%cs\n\t"										\
 		"pushl %3\n\t"											\
-		"ret\n\t"												\
+		"iret\n\t"												\
 		"1:\n\t"												\
 		"popa\n\t"												\
 		: "=m"(prev->regs.esp), "=m"(prev->regs.eip)			\
-		: "m"(next->regs.esp), "m"(next->regs.eip)				\
-		: "%eax", "%ebx", "%ecx", "%edx", "ebp"					\
-		)
+		: "m"(next->regs.esp), "m"(next->regs.eip), "a"(get_task_cr3(&next->mm))				\
+		: "%ebx", "%ecx", "%edx", "ebp"							\
+		);														\
+	} while (0)
 
 void schedule(void)
 {
@@ -37,8 +50,7 @@ void schedule(void)
 		task_t *next_next = list_get(next->running.next, task_t, running);
 		if (next_next != idle) next = next_next;
 	}
-	prev->need_resched = 0;
-	printk("next=%d\n", next->pid);
+	clear_need_resched();
 	if (next != prev) context_switch(prev, next);
 	restore_flags(flags);
 }

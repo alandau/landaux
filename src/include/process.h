@@ -3,6 +3,7 @@
 
 #include <arch.h>
 #include <list.h>
+#include <mm.h>
 
 #define TASK_RUNNING			0
 #define TASK_INTERRUPTIBLE		1
@@ -18,14 +19,13 @@ typedef struct task_struct
 {
 	int pid;
 	u32 timeslice;
-	int need_resched;
 	int state;
 	int exit_code;
 
 	list_t tasks;
 	list_t running;
 
-	void *mm;
+	mm_t mm;
 	switch_regs_t regs;
 } task_t;
 
@@ -65,7 +65,6 @@ typedef struct {
 
 void init_idle(void);
 void init_tss(void);
-int fork(void);
 
 
 #endif

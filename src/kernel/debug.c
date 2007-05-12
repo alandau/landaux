@@ -2,6 +2,7 @@
 #include <arch.h>
 #include <syms.h>
 #include <mm.h>
+#include <process.h>
 
 #define MAX_CALL_TRACE		100
 #define MAX_DATA_TRACE		10
@@ -59,6 +60,7 @@ void dump_regs(const regs_t *r)
 
 void oops(const regs_t *r)
 {
+	printk("PID %d\n", current->pid);
 	dump_regs(r);
 	print_stack(r);
 	cli();

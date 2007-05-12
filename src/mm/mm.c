@@ -17,15 +17,7 @@
 #define PTE_DIRTY		0x40
 
 #define PHYS_MEM				0xF0000000
-#define KERNEL_VIRT_ADDRESS		0xC0000000
 #define MAX_MEM_SIZE			(256*1024*1024)	/* used to calculate bitmap size */
-
-typedef struct pte_struct		/* page table entry */
-{
-	u8 flags;
-	u32 reserved : 4;		/* bits 8-12, includes Intel-Reserved and Avail */
-	u32 frame : 20;
-} pte_t;
 
 static u32 memsize;		/* in bytes */
 static u32 memused;		/* in bytes */
@@ -51,7 +43,7 @@ static u32 __get_memsize(void)
 }
 
 /* returns frame number of allocated frame */
-static u32 alloc_phys_page(void)
+u32 alloc_phys_page(void)
 {
 	int i, bit = 1, bit_offs = 0;
 	for (i = 0; i < bitmap_size; i++)
@@ -82,7 +74,7 @@ static int have_enough_zeros(u32 *p, u32 start_bit, u32 max_bits, int zeros)
 
 // allocates count consecutive frames
 // returns the frame number of the first page
-static u32 alloc_phys_pages(u32 count)
+u32 alloc_phys_pages(u32 count)
 {
 	int i, bit;
 	if (count == 0) return 0;
@@ -111,7 +103,7 @@ static u32 alloc_phys_pages(u32 count)
 	return 0;
 }
 
-static void free_phys_pages(u32 frame, u32 count)
+void free_phys_pages(u32 frame, u32 count)
 {
 	if (count == 0) return;
 	if (frame/32 >= bitmap_size) BUG();
@@ -134,7 +126,7 @@ static u32 alloc_zeroed_phys_page(void)
 }
 
 /* frees frame by number */
-static void free_phys_page(u32 frame)
+void free_phys_page(u32 frame)
 {
 	int bit_offs, bit, i;
 	i = frame / 32;			/* 4 == sizeof(unsigned long) */
@@ -154,7 +146,7 @@ static u32 alloc_page_table_page(pte_t *first)
 	if (first->flags & PTE_PRESENT) BUG();
 	u32 table = alloc_zeroed_phys_page();
 	if (!table) BUG();
-	first->flags = PTE_PRESENT | PTE_WRITE | PTE_USER;
+	first->flags = PTE_PRESENT | PTE_WRITE;
 	first->frame = table;
 	return table;
 }
@@ -205,65 +197,21 @@ void init_mm(void)
 		second->frame = i;
 	}
 
+	// mark all pages in the range 0-3GB accessible from usermode
+	for (i=0; i<KERNEL_VIRT_ADDRESS/(4*1024*1024); i++)
+		page_dir[i].flags |= PTE_USER;
+
 	// unmap the first mb
+	asm ("nop;nop;nop;nop;nop");
 //	page_dir[0].flags &= ~PTE_PRESENT;
 //	int i = ((unsigned long)first_mb_table - KERNEL_VIRT_ADDRESS) >> PAGE_SHIFT;
 //	bitmap[i/32] &= ~(1 << (i%32));
 	// for now, unmap first page, to catch NULL dereferences
 	pte_t *second = (pte_t *)(PHYS_MEM+page_dir[0].frame*PAGE_SIZE);
 	second->flags &= ~PTE_PRESENT;
+
+	init_task_mm(&current->mm);
 }
-
-/* allocated a page and adds the necessary mappings to the page tables, creating more if needed
-   returns the virtual address of the newly allocated page */
-void *alloc_page(void)
-{
-	u32 phys = alloc_phys_page();
-	if (phys == 0) return NULL;
-	return ioremap(phys << PAGE_SHIFT, PAGE_SIZE);
-}
-
-// allocated count consecutive pages and maps them to the vma
-void *alloc_pages(u32 count)
-{
-	if (count == 0) return NULL;
-	if (count == 1) return alloc_page();
-	u32 phys = alloc_phys_pages(count);
-	if (phys == 0) return NULL;
-	return ioremap(phys << PAGE_SHIFT, count << PAGE_SHIFT);
-}
-
-void free_page(void *address)
-{
-	u32 addr = (u32)address;
-	int i, j;
-	pte_t *first, *second;
-	if (addr & (PAGE_SIZE-1)) BUG();
-	addr >>= PAGE_SHIFT;
-	i = addr >> 10;
-	j = addr & ((1<<10) - 1);
-	first = &page_dir[i];
-	if (!(first->flags & PTE_PRESENT)) BUG();
-	second = (pte_t *)(PHYS_MEM + (first->frame*PAGE_SIZE)) + j;
-	if (!(second->flags & PTE_PRESENT)) BUG();
-	second->flags &= ~PTE_PRESENT;
-	free_phys_page(second->frame);
-}
-
-void free_pages(void *address, u32 count)
-{
-	u32 __iounmap(void *address, u32 size);
-
-	if (count == 0) return;
-	if (count == 1) free_page(address);
-	if ((u32)address & (PAGE_SIZE-1)) BUG();
-	u32 frame = __iounmap(address, count << PAGE_SHIFT);
-	if (frame == 0) BUG();
-	free_phys_pages(frame, count);
-}
-
-
-
 
 u32 get_mem_size()
 {
@@ -284,14 +232,14 @@ u32 get_free_mem()
 // given the pte at (first1, second1), find the next pte and put it's address at (*first2, *second2)
 // *second2 will be NULL if *first2 points to a not-yet-allocated page
 // returns 0 if *first2 went out of page_dir, 1 otherwise
-int get_next_pte(pte_t *first1, pte_t *second1, pte_t **first2, pte_t **second2)
+static int get_next_pte(pte_t *first1, pte_t *second1, pte_t **first2, pte_t **second2, mm_t *mm)
 {
 	second1++;
 	if (!((u32)second1 & (PAGE_SIZE-1)))		// increment first
 	{
 		*first2 = first1+1;
 		*second2 = NULL;
-		if (*first2 - page_dir >= PAGE_SIZE/sizeof(pte_t)) return 0;
+		if (*first2 - mm->page_dir >= PAGE_SIZE/sizeof(pte_t)) return 0;
 		if ((*first2)->flags & PTE_PRESENT)				// *first2 is allocated, set *second2 to the first entry in it
 		{
 			*second2 = (pte_t *)(PHYS_MEM + ((*first2)->frame << PAGE_SHIFT));
@@ -305,9 +253,10 @@ int get_next_pte(pte_t *first1, pte_t *second1, pte_t **first2, pte_t **second2)
 	return 1;
 }
 
-
-void *ioremap(u32 phys_addr, u32 size)
+// if virt_addr==0, finds a suitable address
+void *ioremap_mm(u32 phys_addr, u32 size, u32 virt_addr, u32 flags, mm_t *mm)
 {
+	if (virt_addr & (PAGE_SIZE-1)) BUG();
 	if (size == 0) return NULL;
 	u32 frame = phys_addr >> PAGE_SHIFT;
 	size += phys_addr & (PAGE_SIZE-1);
@@ -315,11 +264,17 @@ void *ioremap(u32 phys_addr, u32 size)
 	u32 count = size >> PAGE_SHIFT;
 	if (count > PAGE_SIZE/sizeof(pte_t)) return NULL;
 
+	u8 page_flags = 0;
+	if (flags & MAP_USERSPACE) page_flags |= PTE_USER;
+	if (flags & MAP_READWRITE) page_flags |= PTE_WRITE;
+
+	pte_t *dir = mm->page_dir;
+
 	// should map count frames starting at frame
-	pte_t *first = &page_dir[KERNEL_VIRT_ADDRESS/(4*1024*1024)];
+	pte_t *first = &dir[(virt_addr?virt_addr:KERNEL_VIRT_ADDRESS) / (4*1024*1024)];
 	if (!(first->flags & PTE_PRESENT)) alloc_page_table_page(first);
-	pte_t *second = (pte_t *)(PHYS_MEM + (first->frame<<PAGE_SHIFT));
-	while (first < page_dir + PAGE_SIZE/sizeof(pte_t))
+	pte_t *second = (pte_t *)(PHYS_MEM + (first->frame<<PAGE_SHIFT)) + (virt_addr?(virt_addr>>PAGE_SHIFT)&0x03FF:0);
+	while (first < dir + PAGE_SIZE/sizeof(pte_t))
 	{
 		if (!(second->flags & PTE_PRESENT))
 		{
@@ -328,7 +283,7 @@ void *ioremap(u32 phys_addr, u32 size)
 			// start the loop from 1 since we know that second is not present
 			for (i=1; i<count; i++)
 			{
-				if (!get_next_pte(old_first, old_second, &new_first, &new_second)) return NULL;
+				if (!get_next_pte(old_first, old_second, &new_first, &new_second, mm)) return NULL;
 				if (new_second == NULL)						// success
 				{
 					i=count;
@@ -346,22 +301,23 @@ void *ioremap(u32 phys_addr, u32 size)
 				old_second = second;
 				for (i=0; i<count; i++)
 				{
-					second->flags = PTE_PRESENT | PTE_WRITE | PTE_USER;
+					if (flags & MAP_USERSPACE) first->flags |= PTE_USER;
+					second->flags = PTE_PRESENT | page_flags;
 					second->frame = frame++;
-					if (!get_next_pte(first, second, &new_first, &new_second)) return NULL;
+					if (!get_next_pte(first, second, &new_first, &new_second, mm)) return NULL;
 					// new_first was allocated if necessary, thus new_second!=NULL
 					first = new_first;
 					second = new_second;
 				}
 				u32 offset = phys_addr & (PAGE_SIZE-1);
-				i = old_first - page_dir;
+				i = old_first - dir;
 				u32 j = ((u32)old_second & (PAGE_SIZE-1)) / sizeof(pte_t);
 				return (void *)((((i<<10) | j) << PAGE_SHIFT) | offset);
 			}
 			// if got here, then not found count free pages, and not allocated 2nd level page tables
 		}
 		pte_t *first2, *second2;
-		if (!get_next_pte(first, second, &first2, &second2)) return NULL;
+		if (!get_next_pte(first, second, &first2, &second2, mm)) return NULL;
 		if (second2 == NULL)
 		{
 			alloc_page_table_page(first2);
@@ -384,7 +340,7 @@ u32 __iounmap(void *address, u32 size)
 	u32 count = size >> PAGE_SHIFT;
 	if (count > PAGE_SIZE/sizeof(pte_t)) BUG();
 	int i = page>>10, j = page & 0x03FF;
-	pte_t *first = &page_dir[i];
+	pte_t *first = &current->mm.page_dir[i];
 	if (!(first->flags & PTE_PRESENT)) BUG();
 	pte_t *second = (pte_t *)(PHYS_MEM + (first->frame<<PAGE_SHIFT)) + j;
 	u32 ret = second->frame;
@@ -393,7 +349,7 @@ u32 __iounmap(void *address, u32 size)
 		if (!(second->flags & PTE_PRESENT)) BUG();
 		second->flags &= ~PTE_PRESENT;
 		pte_t *new_first, *new_second;
-		if (!get_next_pte(first, second, &new_first, &new_second)) BUG();
+		if (!get_next_pte(first, second, &new_first, &new_second, &current->mm)) BUG();
 		if (new_second == NULL) BUG();
 		first = new_first;
 		second = new_second;
@@ -401,47 +357,147 @@ u32 __iounmap(void *address, u32 size)
 	return ret;
 }
 
+void *ioremap(u32 phys_addr, u32 size, u32 virt_addr, u32 flags)
+{
+	return ioremap_mm(phys_addr, size, virt_addr, flags, &current->mm);
+}
+
+
 void iounmap(void *address, u32 size)
 {
 	__iounmap(address, size);
 }
 
-u32 virt_to_phys(void *address)
+u32 virt_to_phys_mm(void *address, mm_t *mm)
 {
 	u32 addr = (u32)address;
 	u32 offset = addr & (PAGE_SIZE-1);
 	addr >>= PAGE_SHIFT;
 	u32 i = addr >> 10;
 	u32 j = addr & 0x03FF;
-	pte_t *first = &((pte_t *)current->mm)[i];
+	pte_t *first = &mm->page_dir[i];
 	if (!(first->flags & PTE_PRESENT)) BUG();
 	pte_t *second = (pte_t *)(PHYS_MEM + (first->frame<<PAGE_SHIFT)) + j;
 	if (!(second->flags & PTE_PRESENT)) BUG();
 	return (second->frame << PAGE_SHIFT) + offset;
 }
 
-void *clone_mm(void *mm)
+u32 virt_to_phys(void *address)
 {
-	pte_t *old_pg = (pte_t *)mm, *new_pg = alloc_page();
-	if (!new_pg) return NULL;
-	memcpy(new_pg, old_pg, PAGE_SIZE);
+	return virt_to_phys_mm(address, &current->mm);
+}
+
+/* allocated a page and adds the necessary mappings to the page tables, creating more if needed
+   returns the virtual address of the newly allocated page */
+void *alloc_page_mm(u32 flags, mm_t *mm)
+{
+	u32 phys = alloc_phys_page();
+	if (phys == 0) return NULL;
+	return ioremap_mm(phys << PAGE_SHIFT, PAGE_SIZE, 0, flags, mm);
+}
+
+void *alloc_page(u32 flags)
+{
+	return alloc_page_mm(flags, &current->mm);
+}
+
+// allocated count consecutive pages and maps them to the vma
+void *alloc_pages(u32 count, u32 flags)
+{
+	if (count == 0) return NULL;
+	if (count == 1) return alloc_page(flags);
+	u32 phys = alloc_phys_pages(count);
+	if (phys == 0) return NULL;
+	return ioremap(phys << PAGE_SHIFT, count << PAGE_SHIFT, 0, flags);
+}
+
+void free_page_mm(void *address, mm_t *mm)
+{
+	u32 addr = (u32)address;
 	int i, j;
-	for (i=0; i<PAGE_SIZE/sizeof(pte_t); i++)
+	pte_t *first, *second;
+	if (addr & (PAGE_SIZE-1)) BUG();
+	addr >>= PAGE_SHIFT;
+	i = addr >> 10;
+	j = addr & ((1<<10) - 1);
+	first = &mm->page_dir[i];
+	if (!(first->flags & PTE_PRESENT)) BUG();
+	second = (pte_t *)(PHYS_MEM + (first->frame*PAGE_SIZE)) + j;
+	if (!(second->flags & PTE_PRESENT)) BUG();
+	second->flags &= ~PTE_PRESENT;
+	free_phys_page(second->frame);
+}
+
+void free_page(void *address)
+{
+	free_page_mm(address, &current->mm);
+}
+
+void free_pages(void *address, u32 count)
+{
+	u32 __iounmap(void *address, u32 size);
+
+	if (count == 0) return;
+	if (count == 1) free_page(address);
+	if ((u32)address & (PAGE_SIZE-1)) BUG();
+	u32 frame = __iounmap(address, count << PAGE_SHIFT);
+	if (frame == 0) BUG();
+	free_phys_pages(frame, count);
+}
+
+int clone_mm(mm_t *dest_mm)
+{
+	pte_t *old_pg = current->mm.page_dir, *new_pg = alloc_page(MAP_READWRITE);
+	if (!new_pg) return 0;
+	memcpy(new_pg, old_pg, PAGE_SIZE);
+	dest_mm->page_dir = new_pg;
+	int i, j;
+	for (i=0; i<KERNEL_VIRT_ADDRESS/(4*1024*1024); i++)
 	{
 		if (!(old_pg[i].flags & PTE_PRESENT)) continue;
 		pte_t *old_second = (pte_t *)(PHYS_MEM + (old_pg[i].frame<<PAGE_SHIFT));
-		pte_t *new_second = (pte_t *)alloc_page();
-		if (!new_second) return NULL;
-		new_pg[i].frame = virt_to_phys(new_second);
+		new_pg[i].flags = 0;
+		if (alloc_page_table_page(&new_pg[i]) == 0) return 0;
+		new_pg[i].flags |= PTE_USER;
+		pte_t *new_second = (pte_t *)(PHYS_MEM + (new_pg[i].frame<<PAGE_SHIFT));
 		memcpy(new_second, old_second, PAGE_SIZE);
-		for (j=0; j<PAGE_SIZE; j++)
+		for (j=0; j<PAGE_SIZE/sizeof(pte_t); j++)
 		{
 			if (!(new_second[j].flags & PTE_PRESENT)) continue;
 			void *old_page = (void *)(PHYS_MEM + (old_second[j].frame<<PAGE_SHIFT));
-			void *new_page = alloc_page();
-			if (!new_page) return NULL;
+			void *new_page = alloc_page_mm(MAP_USERSPACE | (old_second[j].flags&PTE_WRITE ? MAP_READWRITE : 0), dest_mm);
+			if (!new_page) return 0;
+			new_second->frame = virt_to_phys_mm(new_page, dest_mm);
 			memcpy(new_page, old_page, PAGE_SIZE);
 		}
 	}
-	return new_pg;
+	return 1;
+}
+
+void free_mm(mm_t *mm)
+{
+	int i, j;
+	pte_t *dir = mm->page_dir;
+	for (i=0; i<KERNEL_VIRT_ADDRESS/(4*1024*1024); i++)
+	{
+		if (!(dir[i].flags & PTE_PRESENT)) continue;
+		pte_t *second = (pte_t *)(PHYS_MEM + (dir[i].frame<<PAGE_SHIFT));
+		for (j=0; j<PAGE_SIZE/sizeof(pte_t); j++)
+		{
+			if (!(second[j].flags & PTE_PRESENT)) continue;
+//			free_phys_page(second[j].frame);
+		}
+//		free_phys_page(dir[i].frame);
+	}
+//	free_phys_page(virt_to_phys(page_dir));
+}
+
+u32 get_task_cr3(mm_t *mm)
+{
+	return virt_to_phys(mm->page_dir);
+}
+
+void init_task_mm(mm_t *mm)
+{
+	mm->page_dir = page_dir;
 }
