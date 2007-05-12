@@ -1,7 +1,9 @@
 #ifndef STRING_H
 #define STRING_H
 
-static inline void *memcpy(void *dest, const void *src, u32 count)
+#define __always_inline inline __attribute__((always_inline))
+
+static __always_inline void *memcpy(void *dest, const void *src, u32 count)
 {
 	u32 tmp1, tmp2, tmp3;
 	__asm__ __volatile__ (
@@ -40,7 +42,7 @@ static inline void *memmove(void *dest, const void *src, u32 count)
 	return dest;
 }
 
-static inline void *memset(void *dest, u8 value, u32 count)
+static __always_inline void *memset(void *dest, int value, u32 count)
 {
 	u32 tmp1, tmp2;
 	__asm__ __volatile__ (

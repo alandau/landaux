@@ -36,7 +36,7 @@ extern tss_t tss;
 		"popa\n\t"												\
 		: "=m"(prev->regs.esp), "=m"(prev->regs.eip)			\
 		: "m"(next->regs.esp), "m"(next->regs.eip), "a"(get_task_cr3(&next->mm))				\
-		: "%ebx", "%ecx", "%edx", "ebp"							\
+		: "%ebx", "%ecx", "%edx"								\
 		);														\
 	} while (0)
 

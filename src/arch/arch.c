@@ -38,3 +38,17 @@ void init_pit(void)
 	outb(PIT_CHANNEL0, counter & 0xFF);
 	outb(PIT_CHANNEL0, counter >> 8);
 }
+
+void *memcpy(void *dest, const void *src, u32 count)
+{
+	u32 tmp1, tmp2, tmp3;
+	__asm__ __volatile__ (
+		"cld\n\t"
+		"rep\n\t"
+		"movsb"
+		: "=&c" (tmp1), "=&D" (tmp2), "=&S" (tmp3)
+		: "0" (count), "1" (dest), "2" (src)
+		: "memory");
+	return dest;
+}
+

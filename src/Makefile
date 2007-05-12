@@ -1,6 +1,6 @@
 VERSION_MAJOR   := 0
 VERSION_MINOR   := 0
-VERSION_RELEASE := 5
+VERSION_RELEASE := 6
 VERSION_BUILD   := $(shell cat .build 2>/dev/null)
 VERSION_BUILD   := $(shell expr $(VERSION_BUILD) + 1)
 VERSION         := $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_RELEASE).b$(VERSION_BUILD)
@@ -15,7 +15,7 @@ endif
 CC=gcc
 AS=nasm -f elf
 INCLUDE=$(TOPDIR)/include
-CFLAGS := -I$(INCLUDE) -O2 -finline-functions -nostdinc -Wall -Wstrict-prototypes
+CFLAGS := -I$(INCLUDE) -O2 -finline-functions -fno-stack-protector -nostdinc -Wall -Wstrict-prototypes
 ASFLAGS:= 
 
 export CC AS CFLAGS ASFLAGS
@@ -40,7 +40,7 @@ version:
 	echo "#define VERSION_BUILD $(VERSION_BUILD)" >> version.h;	\
 	echo "#endif" >> version.h)
 
-image: boot scripts version
+image: dep boot scripts version
 	$(call recurse,build)
 	[ -e .changed ] && { $(MAKE) link && rm -f .changed || exit 1; } || { echo "Nothing changed, not linking"; exit 0; }
 
@@ -70,7 +70,7 @@ clean:
 
 install: image
 	scripts/cpboot boot/boot.o ../bochs/floppya.img
-	sudo mount -t vfat -o loop,uid=501,gid=501 ../bochs/floppya.img ../bochs/mnt
+	sudo mount -t vfat -o loop,uid=1000,gid=1000 ../bochs/floppya.img ../bochs/mnt
 	cp image ../bochs/mnt
 	sudo umount ../bochs/mnt
 	scripts/patch_boot image ../bochs/floppya.img

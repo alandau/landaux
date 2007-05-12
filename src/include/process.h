@@ -61,7 +61,7 @@ typedef struct {
 	u16 ldt, __ldt;
 	u16 trap;
 	u16 io_map_base;
-} tss_t __attribute__((packed));
+} __attribute__((packed)) tss_t;
 
 void init_idle(void);
 void init_tss(void);

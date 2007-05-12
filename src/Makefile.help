@@ -8,7 +8,7 @@ build: $(MAINOBJ)
 
 $(MAINOBJ): $(addprefix $(dir)/,$(OBJS))
 	$(call recurse,build)
-	echo "Linking $(MAINOBJ) ..."
+	echo "LD $(subst $(TOPDIR)/,,$(MAINOBJ))"
 	$(LD) $(LDFLAGS) -r -o $@ $^ $(addprefix $(dir)/,$(addsuffix /all.o,$(SUBDIRS)))
 
 .PHONY: dep
