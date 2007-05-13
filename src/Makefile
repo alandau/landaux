@@ -23,6 +23,7 @@ export CC AS CFLAGS ASFLAGS
 SUBDIRS:=kernel arch mm drivers
 .PHONY: scripts
 .PHONY: dep boot
+.PHONY: tags
 
 OBJS := $(addsuffix /all.o,$(SUBDIRS))
 
@@ -67,6 +68,9 @@ backup:
 
 clean:
 	find . -name '*.o' -o -name '.depend' | xargs rm -f
+
+tags:
+	ctags -R
 
 install: image
 	scripts/cpboot boot/boot.o ../bochs/floppya.img

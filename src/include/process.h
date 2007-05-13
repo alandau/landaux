@@ -65,6 +65,7 @@ typedef struct {
 
 void init_idle(void);
 void init_tss(void);
+int kernel_thread(void (*fn)(void *data), void *data);
 
 
 #endif

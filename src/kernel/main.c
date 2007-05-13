@@ -54,6 +54,16 @@ static inline int user_fork(void)
 	return ret;
 }
 
+static void kthread_func(void *data)
+{
+	while (1) {
+		int x=0;
+		while (x++ < 100)
+			printk("%d", current->pid);
+		schedule();
+	}
+}
+
 /* This is the C entry point of the kernel. It runs with interrupts disabled */
 void kernel_start(void)
 {
@@ -71,25 +81,28 @@ void kernel_start(void)
 	printk("Found %u MB of memory.\n", get_mem_size()/1024/1024);
 	printk("Memory used: %u bytes.\n", get_used_mem());
 	
+	kernel_thread(kthread_func, "1");
+	kernel_thread(kthread_func, "2");
+#if 0
 	move_to_user_mode();
 	if (user_fork() == 0)
 	{
 		// child
-		char str[]="in init\n";
+		char *str="in init\n";
 		int tmp;
 		//printk(str);
 		__asm__ __volatile__ ("int $0x30" : "=a"(tmp) : "a"(0), "b"(str));
 		__asm__ __volatile__ ("int $0x30" : "=a"(tmp) : "a"(2), "b"(str));
 		while (1);
 	}
-	
+
 	// parent is the idle task
 	{
 		const char *str="in idle\n";
 		int tmp;
 		__asm__ __volatile__ ("int $0x30" : "=a"(tmp) : "a"(0), "b"(str));
 	}
-	
+#endif	
 	/* idle loop */
 	while (1) halt();
 }

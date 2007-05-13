@@ -16,16 +16,20 @@ void init_idle(void)
 {
 	real_idle_stack = alloc_pages(sizeof(task_stack_t) / PAGE_SIZE, MAP_READWRITE);
 	if (!real_idle_stack) BUG();
-	memset(real_idle_stack, 0, sizeof(real_idle_stack));
+	memcpy(real_idle_stack, &idle_task_stack, sizeof(task_stack_t));
+	__asm__ __volatile__ ("addl %0, %%esp"
+			: /* no outputs */
+			: "g"((char *)real_idle_stack - (char *)&idle_task_stack)
+			: "%esp");
 	idle = &real_idle_stack->task;
 	// current points to idle_task_stack. we initialize current->mm since virt_to_phys needs it (called in init_tss)
 	init_task_mm(&idle->mm);
 	current->mm = idle->mm;
 	idle->pid = 0;
 	idle->timeslice = 1;
-	set_need_resched();
 	list_init(&idle->tasks);
 	list_init(&idle->running);
+	set_need_resched();
 	next_free_pid = 1;
 }
 
@@ -79,6 +83,28 @@ int sys_fork(void)
 	return p->pid;
 }
 
+int kernel_thread(void (*fn)(void *data), void *data)
+{
+	task_t *p = alloc_pages(sizeof(task_stack_t) / PAGE_SIZE, MAP_READWRITE);
+	*p = *idle;
+	p->pid = next_free_pid++;
+	if (p->pid < 0) BUG();		// overflow
+	p->state = TASK_RUNNING;
+	list_init(&p->tasks);
+	list_init(&p->running);
+	list_add(&idle->tasks, &p->tasks);
+	list_add(&idle->running, &p->running);
+	p->timeslice = 10;
+	regs_t *parent_regs = (regs_t *)((task_stack_t *)idle + 1) - 1;
+	regs_t *child_regs = (regs_t *)((task_stack_t *)p + 1) - 1;
+	*child_regs = *parent_regs;
+	p->regs.eip = (u32)fn;
+	p->regs.esp = (u32)((char *)p + sizeof(task_stack_t));
+	*(u32 *)(p->regs.esp -= 4) = (u32)data;
+	*(u32 *)(p->regs.esp -= 4) = 0;	//guard against function exit
+	return p->pid;
+}
+
 static void process_code(void)
 {
 	int tmp;
@@ -88,15 +114,20 @@ static void process_code(void)
 	__asm__ __volatile__ ("int $0x30" : "=a"(tmp) : "a"(1));
 	if (tmp)
 	{
-		buf[2]='1';
-		__asm__ __volatile__ ("int $0x30" : "=a"(tmp) : "a"(0), "b"(buf));
+		while (1)
+		{
+			buf[2]='1';
+			__asm__ __volatile__ ("int $0x30" : "=a"(tmp) : "a"(0), "b"(buf));
+		}
 	}
 	else
 	{
-		buf[2]='2';
-		__asm__ __volatile__ ("int $0x30" : "=a"(tmp) : "a"(0), "b"(buf));
+		while (1)
+		{
+			buf[2]='2';
+			__asm__ __volatile__ ("int $0x30" : "=a"(tmp) : "a"(0), "b"(buf));
+		}
 	}
-	while (1);
 }
 
 static void end_process_code(void) {}
