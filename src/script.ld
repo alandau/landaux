@@ -5,35 +5,35 @@ SECTIONS
     . = 0xC0000000;
     .text :
     {
-	code = .; _code = .;
+	_code = .;
 	*(.text)
-	code_end = .;
-	rodata = .;
+	_code_end = .;
+	_rodata = .;
 	*(.rodata*)
-	rodata_end = .;
+	_rodata_end = .;
 	. = ALIGN(4);
     }
     .data :
     {
-	data = .; _data = .;
+	 _data = .;
 	*(.data)
-	data_end = .;
+	_data_end = .;
 	. = ALIGN(4);
     }
     .ksymtab :
     {
-	ksymtab = .; _ksymtab = .;
-	PROVIDE(__ksymtab = .);
+	_ksymtab = .;
+	PROVIDE(__ksymtab = .);	/* for the first link, when the symtab is not generated yey */
 	*(.ksymtab)
-	ksymtab_end = .;
+	_ksymtab_end = .;
 	. = ALIGN(4);
     }
     .bss :
     {
-	bss = .; _bss = .;
+	_bss = .;
 	*(.bss)
 	. = ALIGN(4);
     }
-    bss_end = .;
-    end = .; _end = .;
+    _bss_end = .;
+    _end = .;
 }

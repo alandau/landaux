@@ -3,8 +3,8 @@
 extern symbol_t __ksymtab[];
 
 /* '-1' because last entry of __ksymtab is {0,'',""} */
-extern char ksymtab[], ksymtab_end[];
-#define NUM_SYMS ((ksymtab_end-ksymtab) / sizeof(symbol_t) - 1)
+extern char _ksymtab[], _ksymtab_end[];
+#define NUM_SYMS ((_ksymtab_end-_ksymtab) / sizeof(symbol_t) - 1)
 
 /*
 searches for the symbol with the maximum address <= 'address'. *sym will point to that entry.

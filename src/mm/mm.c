@@ -156,13 +156,13 @@ void init_mm(void)
 	u32 i, kernel_pages;
 	memsize = __get_memsize();
 	memused = 0;
-	extern unsigned char code[], end[];
-	u32 kernel_size = end-code;
+	extern unsigned char _code[], _end[];
+	u32 kernel_size = _end-_code;
 	/* Assume memory size is a multiple of 128K */
 	bitmap_size = (memsize / PAGE_SIZE) / 32;
 	/* bitmap is in BSS and thus already zeroed */
 
-	/* mark that the memory used by kernel: start at 0x1000=4KB, end at 'end'
+	/* mark that the memory used by kernel: start at 0x1000=4KB, end at '_end'
 	   mark 1st page (0x0-0x1000) as used too */
 	bitmap[0] |= 1;
 	kernel_pages = kernel_size / PAGE_SIZE;

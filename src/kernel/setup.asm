@@ -164,9 +164,9 @@ mov byte [0x500], dl
 mov byte [0x100500], dh
 
 ; zero BSS
-EXTERN bss, bss_end
-mov edi, SEG_BASE+bss
-mov ecx, SEG_BASE+bss_end
+EXTERN _bss, _bss_end
+mov edi, SEG_BASE+_bss
+mov ecx, SEG_BASE+_bss_end
 sub ecx, edi
 shr ecx, 2
 cld
@@ -205,10 +205,10 @@ mov dword [SEG_BASE+page_dir + KERNEL_VIRT_ADDR/(4*1024*1024)*4], eax
 ; loop map_page_dir
 
 ; fill in page table to map kernel addresses
-EXTERN end
+EXTERN _end
 mov edi, SEG_BASE+kernel_page_table
 mov eax, KERNEL_PHYS_ADDR | 7
-mov ecx, end
+mov ecx, _end
 sub ecx, KERNEL_VIRT_ADDR - 4095
 shr ecx, 12			; ecx = num pages in kernel
 map_kernel:

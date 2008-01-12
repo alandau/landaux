@@ -9,8 +9,8 @@
 
 static inline int is_code(u32 address)
 {
-	extern char code[], code_end[];
-	return (u32)code <= address && address < (u32)code_end;
+	extern char _code[], _code_end[];
+	return (u32)_code <= address && address < (u32)_code_end;
 }
 
 /* prints call stack in symbolic form */
