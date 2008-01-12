@@ -1,4 +1,4 @@
-all: cpboot patch_boot syms
+all: syms
 
 CFLAGS=
 include $(TOPDIR)/Rules.make

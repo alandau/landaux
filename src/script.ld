@@ -1,9 +1,9 @@
 OUTPUT_FORMAT("elf32-i386")
-ENTRY(entry)
+ENTRY(_start)
 SECTIONS
 {
-    . = 0xC0000000;
-    .text :
+    . = 0xC0100000;
+    .text : AT(0x100000)
     {
 	_code = .;
 	*(.text)
@@ -36,4 +36,8 @@ SECTIONS
     }
     _bss_end = .;
     _end = .;
+    /DISCARD/ :
+    {
+	    *(.comment)
+    }
 }

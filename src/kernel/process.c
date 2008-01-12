@@ -35,6 +35,7 @@ void init_idle(void)
 
 void init_tss(void)
 {
+#if 0
 	memset(&tss, 0, sizeof(tss));
 	tss.ss0 = tss.ss = KERNEL_DS;
 	tss.esp0 = (u32)(real_idle_stack + 1);
@@ -58,10 +59,12 @@ void init_tss(void)
 //	halt();
 	__asm__ __volatile__ ("ltrw %%ax" : /* no output */ : "a" (TSS_SELECTOR));
 //	halt();
+#endif
 }
 
 int sys_fork(void)
 {
+#if 0
 	extern char ret_from_sys_call[];
 
 	task_t *p = alloc_pages(sizeof(task_stack_t) / PAGE_SIZE, MAP_READWRITE);
@@ -81,6 +84,9 @@ int sys_fork(void)
 	p->regs.eip = (u32)ret_from_sys_call;
 	p->regs.esp = (u32)child_regs;
 	return p->pid;
+#else
+	return 0;
+#endif
 }
 
 int kernel_thread(void (*fn)(void *data), void *data)
@@ -135,7 +141,7 @@ static void end_process_code(void) {}
 int sys_exec(void)
 {
 #define CODE_START (1024*1024)	// 1MB
-#define STACK_START KERNEL_VIRT_ADDRESS
+#define STACK_START KERNEL_VIRT_ADDR
 	u32 code_size = end_process_code - process_code;
 	u32 code_pages = (code_size + PAGE_SIZE-1) >> PAGE_SHIFT;
 	int i;

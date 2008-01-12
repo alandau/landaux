@@ -1,3 +1,4 @@
+#include <multiboot.h>
 #include <arch.h>
 #include <video.h>
 #include <mm.h>
@@ -65,8 +66,14 @@ static void kthread_func(void *data)
 }
 
 /* This is the C entry point of the kernel. It runs with interrupts disabled */
-void kernel_start(void)
+void kernel_start(unsigned long mb_checksum, multiboot_header_t *mb_header)
 {
+	char *p = (char *)P2V(0xb8000);
+	if (mb_checksum != MULTIBOOT_BOOTLOADER_MAGIC)
+		*p = '?';
+	else
+		*p = 'A';
+	return;
 	init_mm();
 	init_video();
 	init_pic();

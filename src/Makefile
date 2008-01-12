@@ -13,16 +13,16 @@ export MAKEFLAGS = -s
 endif
 
 CC=gcc
-AS=nasm -f elf
+AS=gcc
 INCLUDE=$(TOPDIR)/include
 CFLAGS := -I$(INCLUDE) -O2 -finline-functions -fno-stack-protector -nostdinc -Wall -Wstrict-prototypes
-ASFLAGS:= 
+ASFLAGS:= -DASM -I$(INCLUDE)
 
 export CC AS CFLAGS ASFLAGS
 
 SUBDIRS:=kernel arch mm drivers
 .PHONY: scripts
-.PHONY: dep boot
+.PHONY: dep
 .PHONY: tags
 
 OBJS := $(addsuffix /all.o,$(SUBDIRS))
@@ -41,7 +41,7 @@ version:
 	echo "#define VERSION_BUILD $(VERSION_BUILD)" >> version.h;	\
 	echo "#endif" >> version.h)
 
-image: dep boot scripts version
+image: dep scripts version
 	$(call recurse,build)
 	[ -e .changed ] && { $(MAKE) link && rm -f .changed || exit 1; } || { echo "Nothing changed, not linking"; exit 0; }
 
@@ -55,12 +55,13 @@ link:
 	$(CC) $(CFLAGS) -c ksyms.c -o ksyms.o
 	$(LD) -o image.elf -T script.ld $(OBJS) ksyms.o
 	nm image.elf | sort > system.map
-	objcopy -O binary image.elf image
 	rm -f ksyms.c ksyms.o
-	echo "Image size: `ls -l image | awk '{print $$5}'`"
+	gzip -cf -9 image.elf > image.gz
+	wc -c image.elf
+	wc -c image.gz
 	echo Build: `cat .build`
 
-scripts boot:
+scripts:
 	$(MAKE) -C $@
 
 backup:
@@ -73,16 +74,17 @@ tags:
 	ctags -R
 
 install: image
-	scripts/cpboot boot/boot.o ../bochs/floppya.img
 	sudo mount -t vfat -o loop,uid=1000,gid=1000 ../bochs/floppya.img ../bochs/mnt
-	cp image ../bochs/mnt
+	cp image.gz ../bochs/mnt/landaux.gz
 	sudo umount ../bochs/mnt
-	scripts/patch_boot image ../bochs/floppya.img
 
 bochs: install
 	-cd ../bochs && bochs -q
 
 debug: install
 	-cd ../bochs && bfe2
+
+qemu: install
+	qemu -m 32 -fda ../bochs/floppya.img $(QFLAGS)
 
 include $(TOPDIR)/Rules.make

@@ -2,11 +2,7 @@
 #define MM_H
 
 #include <stddef.h>
-
-#define PAGE_SHIFT				12
-#define PAGE_SIZE				(1<<PAGE_SHIFT)
-#define PAGE_SIZE_K				(PAGE_SIZE/1024)
-#define KERNEL_VIRT_ADDRESS		0xC0000000
+#include <mem.h>
 
 #define MAP_USERSPACE	0x01
 #define MAP_READWRITE	0x02

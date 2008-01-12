@@ -10,11 +10,6 @@
 
 #define ONE_MB			0x100000
 
-#define PTE_PRESENT		0x01
-#define PTE_WRITE		0x02
-#define PTE_USER		0x04
-#define PTE_ACCESSED	0x20
-#define PTE_DIRTY		0x40
 
 #define PHYS_MEM				0xF0000000
 #define MAX_MEM_SIZE			(256*1024*1024)	/* used to calculate bitmap size */
@@ -198,13 +193,13 @@ void init_mm(void)
 	}
 
 	// mark all pages in the range 0-3GB accessible from usermode
-	for (i=0; i<KERNEL_VIRT_ADDRESS/(4*1024*1024); i++)
+	for (i=0; i<KERNEL_VIRT_ADDR/(4*1024*1024); i++)
 		page_dir[i].flags |= PTE_USER;
 
 	// unmap the first mb
 	asm ("nop;nop;nop;nop;nop");
 //	page_dir[0].flags &= ~PTE_PRESENT;
-//	int i = ((unsigned long)first_mb_table - KERNEL_VIRT_ADDRESS) >> PAGE_SHIFT;
+//	int i = ((unsigned long)first_mb_table - KERNEL_VIRT_ADDR) >> PAGE_SHIFT;
 //	bitmap[i/32] &= ~(1 << (i%32));
 	// for now, unmap first page, to catch NULL dereferences
 	pte_t *second = (pte_t *)(PHYS_MEM+page_dir[0].frame*PAGE_SIZE);
@@ -271,7 +266,7 @@ void *ioremap_mm(u32 phys_addr, u32 size, u32 virt_addr, u32 flags, mm_t *mm)
 	pte_t *dir = mm->page_dir;
 
 	// should map count frames starting at frame
-	pte_t *first = &dir[(virt_addr?virt_addr:KERNEL_VIRT_ADDRESS) / (4*1024*1024)];
+	pte_t *first = &dir[(virt_addr?virt_addr:KERNEL_VIRT_ADDR) / (4*1024*1024)];
 	if (!(first->flags & PTE_PRESENT)) alloc_page_table_page(first);
 	pte_t *second = (pte_t *)(PHYS_MEM + (first->frame<<PAGE_SHIFT)) + (virt_addr?(virt_addr>>PAGE_SHIFT)&0x03FF:0);
 	while (first < dir + PAGE_SIZE/sizeof(pte_t))
@@ -452,7 +447,7 @@ int clone_mm(mm_t *dest_mm)
 	memcpy(new_pg, old_pg, PAGE_SIZE);
 	dest_mm->page_dir = new_pg;
 	int i, j;
-	for (i=0; i<KERNEL_VIRT_ADDRESS/(4*1024*1024); i++)
+	for (i=0; i<KERNEL_VIRT_ADDR/(4*1024*1024); i++)
 	{
 		if (!(old_pg[i].flags & PTE_PRESENT)) continue;
 		pte_t *old_second = (pte_t *)(PHYS_MEM + (old_pg[i].frame<<PAGE_SHIFT));
@@ -478,7 +473,7 @@ void free_mm(mm_t *mm)
 {
 	int i, j;
 	pte_t *dir = mm->page_dir;
-	for (i=0; i<KERNEL_VIRT_ADDRESS/(4*1024*1024); i++)
+	for (i=0; i<KERNEL_VIRT_ADDR/(4*1024*1024); i++)
 	{
 		if (!(dir[i].flags & PTE_PRESENT)) continue;
 		pte_t *second = (pte_t *)(PHYS_MEM + (dir[i].frame<<PAGE_SHIFT));
