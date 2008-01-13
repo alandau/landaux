@@ -1,5 +1,4 @@
 #include <kernel.h>
-#include <video.h>
 
 void do_divide(regs_t r)
 {

@@ -1,6 +1,5 @@
 #include <mm.h>
 #include <arch.h>
-#include <video.h>
 #include <string.h>
 #include <kernel.h>
 #include <process.h>

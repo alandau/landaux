@@ -1,6 +1,5 @@
 #include <stddef.h>
 #include <arch.h>
-#include <video.h>
 #include <irq.h>
 #include <kernel.h>
 

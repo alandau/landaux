@@ -3,13 +3,13 @@
 
 #include <stddef.h>
 
-#define KERNEL_CS		0x0008
-#define KERNEL_DS		0x0010
+#define KERNEL_CS	0x0008
+#define KERNEL_DS	0x0010
 #define LDT_SELECTOR	0x0018
 #define TSS_SELECTOR	0x0020
 
-#define USER_CS			0x000F
-#define USER_DS			0x0017
+#define USER_CS		0x000F
+#define USER_DS		0x0017
 
 typedef struct regs_struct
 {
@@ -66,9 +66,7 @@ static inline void restore_flags(u32 flags)
 
 static inline void halt(void)
 {
-	// overcomes Bochs bug: can't halt with interrupts off
-	/* __asm__ __volatile__ ("hlt"); */
-	while (1);
+	 __asm__ __volatile__ ("hlt");
 }
 
 static inline u32 get_esp(void)

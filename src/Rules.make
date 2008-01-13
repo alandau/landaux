@@ -15,6 +15,10 @@ recurse = set -e; for i in $(SUBDIRS); do $(call call_me,$(addprefix $(dir)/,$$i
 	echo "CC $(subst $(TOPDIR)/,,$<) -> $(subst $(TOPDIR)/,,$@)"
 	$(CC) $(CFLAGS) -S -o $@ $<
 
+%.i: %.c
+	echo "CC $(subst $(TOPDIR)/,,$<) -> $(subst $(TOPDIR)/,,$@)"
+	$(CC) $(CFLAGS) -E -o $@ $<
+
 %.s: %.S
 	echo "AS $(subst $(TOPDIR)/,,$<) -> $(subst $(TOPDIR)/,,$@)"
 	$(AS) $(ASFLAGS) -E -o $@ $<

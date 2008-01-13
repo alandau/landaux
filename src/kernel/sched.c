@@ -1,6 +1,6 @@
+#include <kernel.h>
 #include <sched.h>
 #include <process.h>
-#include <video.h>
 #include <mm.h>
 
 volatile u32 global_flags;

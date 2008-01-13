@@ -3,20 +3,15 @@
 
 .text
 
-.global _start
-
-_start:
-	jmp multiboot_entry
-
 .align 4
-
 /* Multiboot header */
 .long MULTIBOOT_HEADER_MAGIC
 .long MULTIBOOT_HEADER_FLAGS
 .long -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)
 
-multiboot_entry:
-	/* %eax holds MULTIBOOT_BOOTLOADER_MAGIC, %ebx points to multiboot_header_t */
+.global _start
+_start:
+	/* %eax holds MULTIBOOT_BOOTLOADER_MAGIC, %ebx points to multiboot_info_t */
 
 	/* Initialize stack to be able to initialize %eflags */
 	movl $(V2P(idle_task_stack) + PAGE_SIZE), %esp

@@ -1,6 +1,6 @@
 #include <multiboot.h>
 #include <arch.h>
-#include <video.h>
+#include <console.h>
 #include <mm.h>
 #include <syms.h>
 #include <kernel.h>
@@ -8,7 +8,9 @@
 #include <process.h>
 #include <sched.h>
 #include <block.h>
+#include <string.h>
 
+#define GDT_MAX_ENTRIES 3
 
 void f(void **a, int count)
 {
@@ -65,17 +67,105 @@ static void kthread_func(void *data)
 	}
 }
 
-/* This is the C entry point of the kernel. It runs with interrupts disabled */
-void kernel_start(unsigned long mb_checksum, multiboot_header_t *mb_header)
+struct gdtr {
+	unsigned short	size;
+	unsigned long	addr;
+} __attribute__((packed));
+typedef char BUG_struct_gdtr_size_not_6[sizeof(struct gdtr) == 6 ? 1 : -1];
+
+struct gdt_entry {
+	unsigned short	limit0_15;
+	unsigned short	base0_15;
+	unsigned char	base16_23;
+	unsigned char	type : 4;
+	unsigned char	regular : 1;
+	unsigned char	dpl : 2;
+	unsigned char	present : 1;
+	unsigned char	limit16_19 : 4;
+	unsigned char	avail : 1;
+	unsigned char	reserved : 1;
+	unsigned char	opsize : 1;
+	unsigned char	granularity : 1;
+	unsigned char	base24_31;
+} __attribute__((packed));
+typedef char BUG_struct_gdt_entry_size_not_8[sizeof(struct gdt_entry) == 8 ? 1 : -1];
+
+static struct gdt_entry gdt[GDT_MAX_ENTRIES] __attribute__((aligned(4)));
+static struct gdtr gdtr __attribute__((aligned(4)));
+
+static void setup_gdt_entry(unsigned int selector, int type, int regular, int dpl)
 {
-	char *p = (char *)P2V(0xb8000);
-	if (mb_checksum != MULTIBOOT_BOOTLOADER_MAGIC)
-		*p = '?';
-	else
-		*p = 'A';
+	unsigned int entry = selector / 8;
+	BUG_ON(entry >= GDT_MAX_ENTRIES);
+	struct gdt_entry *e = &gdt[entry];
+	memset(e, 0, sizeof(struct gdt_entry));
+	e->limit0_15 = 0xffff;
+	e->type = type;
+	e->regular = regular;
+	e->dpl = dpl;
+	e->present = 1;
+	e->limit16_19 = 0xf;
+	e->opsize = 1;
+	e->granularity = 1;
+#if 0
+	/* zeroed by memset above */
+	e->base0_15 = 0;
+	e->base16_23 = 0;
+	e->avail = 0;
+	e->reserved = 0;
+	e->base24_31 = 0;
+#endif
+}
+
+static void init_gdt(void)
+{
+	/* entry 0 is null */
+	enum {TYPE_CODE = 0xA, TYPE_DATA = 0x2};
+	setup_gdt_entry(KERNEL_CS, TYPE_CODE, 1, 0);
+	setup_gdt_entry(KERNEL_DS, TYPE_DATA, 1, 0);
+	gdtr.size = sizeof(gdt) - 1;
+	gdtr.addr = (unsigned long)&gdt;
+	__asm__ __volatile__ (
+		"lgdt %0\n\t"
+		"movw %1, %%ax\n\t"
+		"movw %%ax, %%ds\n\t"
+		"movw %%ax, %%es\n\t"
+		"movw %%ax, %%fs\n\t"
+		"movw %%ax, %%gs\n\t"
+		"movw %%ax, %%ss\n\t"
+		"ljmp %2, $1f\n\t"
+		"1:\n\t"
+		: /* no output */ : "m"(gdtr), "i"(KERNEL_DS), "i"(KERNEL_CS) : "eax"
+	);
+}
+
+/* This is the C entry point of the kernel. It runs with interrupts disabled */
+void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
+{
+	extern char _end[];
+	unsigned long base, size;
+	init_console();
+	if (mb_checksum != MULTIBOOT_BOOTLOADER_MAGIC) {
+		printk("Wrong multiboot checksum 0x%08x.\n", mb_checksum);
+		while (1);
+	}
+	if ((mbi->flags & MULTIBOOT_FLAG_MEM_INFO) == 0) {
+		printk("No meminfo passed by bootloader.\n");
+		while (1);
+	}
+	/* mbi->mem_upper is the amount of memory (in KB) above 1MB */
+	printk("Found %lu MB of memory.\n", mbi->mem_upper/1024 + 1);
+	init_gdt();
+	printk("haha, working! %d\n", 0x100);
+	BUG_ON(1);
+#if 0
+	init_idt();
+	base = ROUND_PAGE_UP(V2P(_end));
+	size = ROUND_PAGE_DOWN(mbi->mem_upper*1024 - base);
+	init_pmm(base, size);
+#endif
 	return;
 	init_mm();
-	init_video();
 	init_pic();
 	init_pit();
 	init_idle();

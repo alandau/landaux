@@ -25,7 +25,8 @@ SUBDIRS:=kernel arch mm drivers
 .PHONY: dep
 .PHONY: tags
 
-OBJS := $(addsuffix /all.o,$(SUBDIRS))
+LIBGCC := $(shell $(CC) -print-libgcc-file-name)
+OBJS := $(addsuffix /all.o,$(SUBDIRS)) $(LIBGCC)
 
 all: image
 
@@ -85,6 +86,6 @@ debug: install
 	-cd ../bochs && bfe2
 
 qemu: install
-	qemu -m 32 -fda ../bochs/floppya.img $(QFLAGS)
+	qemu -m 32 -fda ../bochs/floppya.img -no-kqemu $(QFLAGS)
 
 include $(TOPDIR)/Rules.make
