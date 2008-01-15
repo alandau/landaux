@@ -11,6 +11,7 @@
 #include <string.h>
 
 #define GDT_MAX_ENTRIES 3
+#define IDT_MAX_ENTRIES (32+16+1)
 
 void f(void **a, int count)
 {
@@ -68,7 +69,7 @@ static void kthread_func(void *data)
 }
 
 struct gdtr {
-	unsigned short	size;
+	unsigned short	limit;
 	unsigned long	addr;
 } __attribute__((packed));
 typedef char BUG_struct_gdtr_size_not_6[sizeof(struct gdtr) == 6 ? 1 : -1];
@@ -123,7 +124,7 @@ static void init_gdt(void)
 	enum {TYPE_CODE = 0xA, TYPE_DATA = 0x2};
 	setup_gdt_entry(KERNEL_CS, TYPE_CODE, 1, 0);
 	setup_gdt_entry(KERNEL_DS, TYPE_DATA, 1, 0);
-	gdtr.size = sizeof(gdt) - 1;
+	gdtr.limit = sizeof(gdt) - 1;
 	gdtr.addr = (unsigned long)&gdt;
 	__asm__ __volatile__ (
 		"lgdt %0\n\t"
@@ -137,6 +138,61 @@ static void init_gdt(void)
 		"1:\n\t"
 		: /* no output */ : "m"(gdtr), "i"(KERNEL_DS), "i"(KERNEL_CS) : "eax"
 	);
+}
+
+struct idtr {
+	unsigned short	limit;
+	unsigned long	addr;
+} __attribute__((packed));
+typedef char BUG_struct_idtr_size_not_6[sizeof(struct idtr) == 6 ? 1 : -1];
+
+struct idt_entry {
+	unsigned short	offset0_15;
+	unsigned short	selector;
+	unsigned char	reserved;
+	unsigned char	trapgate : 1;
+	unsigned char	ones : 3;
+	unsigned char	zero : 1;
+	unsigned char	dpl : 2;
+	unsigned char	present : 1;
+	unsigned short	offset16_31;
+} __attribute__((packed));
+typedef char BUG_struct_idt_entry_size_not_8[sizeof(struct idt_entry) == 8 ? 1 : -1];
+
+static struct idt_entry idt[IDT_MAX_ENTRIES] __attribute__((aligned(4)));
+static struct idtr idtr __attribute__((aligned(4)));
+
+void setup_idt_entry(struct idt_entry *e, void *addr, int trapgate, int dpl)
+{
+	memset(e, 0, sizeof(struct idt_entry));
+	e->offset0_15 = (unsigned long)addr & 0xffff;
+	e->offset16_31 = (unsigned long)addr >> 16;
+	e->selector = KERNEL_CS;
+	e->trapgate = trapgate;
+	e->ones = ~(unsigned char)0;
+	e->dpl = dpl;
+	e->present = 1;
+}
+
+static void init_idt(void)
+{
+	extern char irq_entry_points_start[], irq_entry_points_end[];
+	int i;
+	/* each "routine" takes 16 bytes */
+	BUG_ON(irq_entry_points_end-irq_entry_points_start != 16*IDT_MAX_ENTRIES);
+
+	/* Exceptions */
+	for (i = 0; i < 32; i++)
+		setup_idt_entry(&idt[i], irq_entry_points_start + i*16, 1, 0);
+	/* IRQs */
+	for (i = 0x20; i < 0x30; i++)
+		setup_idt_entry(&idt[i], irq_entry_points_start + i*16, 0, 0);
+	/* Syscall */
+	setup_idt_entry(&idt[0x30], irq_entry_points_start + 0x30*16, 0, 3);
+
+	idtr.limit = sizeof(idt) - 1;
+	idtr.addr = (unsigned long)&idt;
+	__asm__ __volatile__ ("lidt %0\n\t" : /* no output */ : "m"(idtr));
 }
 
 /* This is the C entry point of the kernel. It runs with interrupts disabled */
@@ -156,10 +212,8 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	/* mbi->mem_upper is the amount of memory (in KB) above 1MB */
 	printk("Found %lu MB of memory.\n", mbi->mem_upper/1024 + 1);
 	init_gdt();
-	printk("haha, working! %d\n", 0x100);
-	BUG_ON(1);
-#if 0
 	init_idt();
+#if 0
 	base = ROUND_PAGE_UP(V2P(_end));
 	size = ROUND_PAGE_DOWN(mbi->mem_upper*1024 - base);
 	init_pmm(base, size);

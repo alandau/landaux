@@ -1,8 +1,6 @@
 #ifndef ARCH_H
 #define ARCH_H
 
-#include <stddef.h>
-
 #define KERNEL_CS	0x0008
 #define KERNEL_DS	0x0010
 #define LDT_SELECTOR	0x0018
@@ -11,11 +9,15 @@
 #define USER_CS		0x000F
 #define USER_DS		0x0017
 
+#ifndef ASM
+
+#include <stddef.h>
+
 typedef struct regs_struct
 {
-	u32 ebx, ecx, edx, esi, edi, ebp;
+	u32 edx, ecx, ebx, esi, edi, ebp;
 	u16 ds, __ds, es, __es, fs, __fs, gs, __gs;
-	u32 eax, error_code;
+	u32 eax, intnum, error_code;
 	u32 eip;
 	u16 cs, __cs;
 	u32 eflags;
@@ -178,4 +180,5 @@ static inline void unmask_irq(int irq)
 		outb(PIC2 + 1, masked_irqs >> 8);
 }
 
+#endif	/* !ASM */
 #endif

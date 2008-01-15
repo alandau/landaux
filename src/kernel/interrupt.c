@@ -81,7 +81,7 @@ void do_general_prot(regs_t r)
 void do_page_fault(regs_t r)
 {
 	printk("Page fault\n");
-	printk("Trying to %s address (from %s mode): 0x%0x\n", (r.error_code & 0x02?"write to":"read from"),
+	printk("Trying to %s address (from %s mode): 0x%08x\n", (r.error_code & 0x02?"write to":"read from"),
 		(r.error_code & 0x04?"user":"kernel"), get_cr2());
 	oops(&r);
 }
@@ -92,8 +92,30 @@ void do_coprocessor_err(regs_t r)
 	oops(&r);
 }
 
-void do_reserved(regs_t r)
+void do_unknown_exception(regs_t r)
 {
-	printk("Reserved exception\n");
+	const char *p = NULL;
+	switch (r.intnum) {
+		case  0: p = "Divide error"; break;
+		case  1: p = "Debug exception"; break;
+		case  2: p = "NMI interrupt"; break;
+		case  3: p = "Breakpoint"; break;
+		case  4: p = "Overflow"; break;
+		case  5: p = "Bounds"; break;
+		case  6: p = "Invalid opcode"; break;
+		case  7: p = "No math coprocessor"; break;
+		case  8: p = "Double fault"; break;
+		case  9: p = "Coprocessor segment overrun"; break;
+		case 10: p = "Invalid TSS"; break;
+		case 11: p = "Segment not present"; break;
+		case 12: p = "Stack segment fault"; break;
+		case 13: p = "General protection fault"; break;
+		case 14: p = "Page fault"; break;
+		case 15: p = "Reserved"; break;
+	}
+	if (p)
+		printk("Exception #%d: %s\n", r.intnum, p);
+	else
+		printk("Unknown exception #%d.\n", r.intnum);
 	oops(&r);
 }
