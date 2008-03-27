@@ -213,11 +213,13 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	printk("Found %lu MB of memory.\n", mbi->mem_upper/1024 + 1);
 	init_gdt();
 	init_idt();
-#if 0
-	base = ROUND_PAGE_UP(V2P(_end));
+/* This is only legal since base is below 4MB */
+#define V2P(addr)		((addr) - KERNEL_VIRT_ADDR)
+	base = ROUND_PAGE_UP(V2P((unsigned long)_end));
+#undef V2P
 	size = ROUND_PAGE_DOWN(mbi->mem_upper*1024 - base);
 	init_pmm(base, size);
-#endif
+	map_memory((mbi->mem_upper+1024) * 1024);	/* map all memory */
 	return;
 	init_mm();
 	init_pic();

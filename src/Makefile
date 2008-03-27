@@ -12,11 +12,17 @@ ifndef V
 export MAKEFLAGS = -s
 endif
 
+ifndef D
+OPT_CFLAGS = -O2
+endif
+
 CC=gcc
 AS=gcc
+LD=ld
 INCLUDE=$(TOPDIR)/include
-CFLAGS := -I$(INCLUDE) -O2 -finline-functions -fno-stack-protector -nostdinc -Wall -Wstrict-prototypes
-ASFLAGS:= -DASM -I$(INCLUDE)
+CFLAGS := -I$(INCLUDE) -finline-functions -fno-stack-protector -nostdinc -Wall -Wstrict-prototypes -g $(OPT_CFLAGS)
+ASFLAGS:= -DASM -I$(INCLUDE) -g
+LDFLAGS:= -g
 
 export CC AS CFLAGS ASFLAGS
 
@@ -54,10 +60,12 @@ link:
 	$(LD) -o image.elf -T script.ld $(OBJS) ksyms.o
 	nm image.elf | sort | scripts/syms > ksyms.c
 	$(CC) $(CFLAGS) -c ksyms.c -o ksyms.o
-	$(LD) -o image.elf -T script.ld $(OBJS) ksyms.o
+	$(LD) -o image.elf -T script.ld -g $(OBJS) ksyms.o
 	nm image.elf | sort > system.map
 	rm -f ksyms.c ksyms.o
-	gzip -cf -9 image.elf > image.gz
+	strip image.elf -o image.stripped
+	gzip -cf -9 image.stripped > image.gz
+	rm image.stripped
 	wc -c image.elf
 	wc -c image.gz
 	echo Build: `cat .build`
@@ -82,8 +90,8 @@ install: image
 bochs: install
 	-cd ../bochs && bochs -q
 
-debug: install
-	-cd ../bochs && bfe2
+debug: QFLAGS=-s -S
+debug: qemu
 
 qemu: install
 	qemu -m 32 -fda ../bochs/floppya.img -no-kqemu $(QFLAGS)

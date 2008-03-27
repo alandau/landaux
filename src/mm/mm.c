@@ -18,10 +18,9 @@ static u32 memused;		/* in bytes */
 static u32 bitmap[MAX_MEM_SIZE / PAGE_SIZE / 32];
 static u32 bitmap_size;				/* number of unsigned long's in mem_bitmap */
 
-pte_t page_dir[PAGE_SIZE/sizeof(pte_t)] __attribute__ ((aligned (PAGE_SIZE)));
-pte_t kernel_page_table[PAGE_SIZE/sizeof(pte_t)] __attribute__ ((aligned (PAGE_SIZE)));
 pte_t first_mb_table[PAGE_SIZE/sizeof(pte_t)] __attribute__ ((aligned (PAGE_SIZE)));
 
+#if 0
 /* in bytes */
 static u32 __get_memsize(void)
 {
@@ -35,7 +34,9 @@ static u32 __get_memsize(void)
 	total += tmp;
 	return (total + 1024) * 1024;
 }
+#endif
 
+#if 0
 /* returns frame number of allocated frame */
 u32 alloc_phys_page(void)
 {
@@ -55,7 +56,7 @@ u32 alloc_phys_page(void)
 	memused += PAGE_SIZE;
 	return i*32 + bit_offs;		/* 32 == bits in long */
 }
-
+#endif
 static int have_enough_zeros(u32 *p, u32 start_bit, u32 max_bits, int zeros)
 {
 	for (; zeros && max_bits; max_bits--, zeros--)
@@ -118,7 +119,7 @@ static u32 alloc_zeroed_phys_page(void)
 	memset((void *)(PHYS_MEM + frame*PAGE_SIZE), 0, PAGE_SIZE);
 	return frame;
 }
-
+#if 0
 /* frees frame by number */
 void free_phys_page(u32 frame)
 {
@@ -132,7 +133,7 @@ void free_phys_page(u32 frame)
 	bitmap[i] &= ~bit;
 	memused -= PAGE_SIZE;
 }
-
+#endif
 /* allocates a pagetable page to be pointed by first
    returns the allocated frame number */
 static u32 alloc_page_table_page(pte_t *first)
@@ -147,6 +148,7 @@ static u32 alloc_page_table_page(pte_t *first)
 
 void init_mm(void)
 {
+#if 0
 	u32 i, kernel_pages;
 	memsize = __get_memsize();
 	memused = 0;
@@ -205,6 +207,7 @@ void init_mm(void)
 	second->flags &= ~PTE_PRESENT;
 
 	init_task_mm(&current->mm);
+#endif
 }
 
 u32 get_mem_size()
@@ -385,9 +388,13 @@ u32 virt_to_phys(void *address)
    returns the virtual address of the newly allocated page */
 void *alloc_page_mm(u32 flags, mm_t *mm)
 {
+#if 0
 	u32 phys = alloc_phys_page();
 	if (phys == 0) return NULL;
 	return ioremap_mm(phys << PAGE_SHIFT, PAGE_SIZE, 0, flags, mm);
+#else
+	return 0;
+#endif
 }
 
 void *alloc_page(u32 flags)
@@ -407,6 +414,7 @@ void *alloc_pages(u32 count, u32 flags)
 
 void free_page_mm(void *address, mm_t *mm)
 {
+#if 0
 	u32 addr = (u32)address;
 	int i, j;
 	pte_t *first, *second;
@@ -420,6 +428,7 @@ void free_page_mm(void *address, mm_t *mm)
 	if (!(second->flags & PTE_PRESENT)) BUG();
 	second->flags &= ~PTE_PRESENT;
 	free_phys_page(second->frame);
+#endif
 }
 
 void free_page(void *address)
@@ -493,5 +502,7 @@ u32 get_task_cr3(mm_t *mm)
 
 void init_task_mm(mm_t *mm)
 {
+#if 0
 	mm->page_dir = page_dir;
+#endif
 }

@@ -16,17 +16,17 @@ static irq_t irqs[16];
 
 void do_irq(regs_t r)
 {
-	if (irqs[r.error_code].handler)
+	if (irqs[r.intnum].handler)
 	{
-		irq_t *irq = &irqs[r.error_code];
+		irq_t *irq = &irqs[r.intnum];
 		(irq->handler)(irq->data);
 		irq->count++;
-		if (r.error_code < 8) ack_master_pic();
+		if (r.intnum < 8) ack_master_pic();
 		else ack_slave_pic();
 	}
 	else
 	{
-		printk("Unregistered IRQ #%d\n", r.error_code);
+		printk("Unregistered IRQ #%d\n", r.intnum);
 		BUG();
 	}
 }

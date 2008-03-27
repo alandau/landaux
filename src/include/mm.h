@@ -19,6 +19,13 @@ typedef struct mm_struct
 	pte_t *page_dir;
 } mm_t;
 
+
+void init_pmm(u32 base, u32 size);
+void map_memory(u32 size);
+
+
+
+
 void init_mm(void);
 
 u32 alloc_phys_page(void);

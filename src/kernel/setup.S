@@ -1,6 +1,9 @@
 #include <multiboot.h>
 #include <mem.h>
 
+#define P2V(addr)		((addr) + KERNEL_VIRT_ADDR)
+#define V2P(addr)		((addr) - KERNEL_VIRT_ADDR)
+
 .text
 
 .align 4

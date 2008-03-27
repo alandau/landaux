@@ -7,11 +7,8 @@
 #define KERNEL_VIRT_ADDR	0xC0000000
 #define KERNEL_PHYS_ADDR	0x100000
 
-#define ROUND_PAGE_DOWN(x)	((x) & (PAGE_SIZE-1))
-#define ROUND_PAGE_UP(x)	(((x) + PAGE_SIZE-1) & (PAGE_SIZE-1))
-
-#define P2V(addr)		((addr) + KERNEL_VIRT_ADDR)
-#define V2P(addr)		((addr) - KERNEL_VIRT_ADDR)
+#define ROUND_PAGE_DOWN(x)	((x) & ~(PAGE_SIZE-1))
+#define ROUND_PAGE_UP(x)	(((x) + PAGE_SIZE-1) & ~(PAGE_SIZE-1))
 
 #define PTE_PRESENT		0x01
 #define PTE_WRITE		0x02

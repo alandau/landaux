@@ -1,1 +1,1 @@
-OBJS += mm.o
+OBJS += mm.o pmm.o vmm.o
