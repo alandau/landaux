@@ -65,5 +65,13 @@ void do_timer(void *data)
 void do_keyboard(void *data)
 {
 	u8 key = inb(0x60);
-	printk("keyboard: %s - %d\n", key&0x80?"RELEASED":"PRESSED ",key&0x7F);
+//	printk("keyboard: %s - %d\n", key&0x80?"RELEASED":"PRESSED ",key&0x7F);
+	if (key & 0x80) {
+		void *kmalloc(u32);
+		u32 get_used_mem();
+		static u32 size = 1;
+		void *p = kmalloc(size);
+		printk("Allocated %d bytes at %x, memused=%d\n", size, p, get_used_mem());
+		size *= 2;
+	}
 }

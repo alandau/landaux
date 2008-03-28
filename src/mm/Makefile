@@ -1,1 +1,1 @@
-OBJS += mm.o pmm.o vmm.o
+OBJS += mm.o pmm.o vmm.o heap.o

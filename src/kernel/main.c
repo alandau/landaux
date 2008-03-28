@@ -213,19 +213,16 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	printk("Found %lu MB of memory.\n", mbi->mem_upper/1024 + 1);
 	init_gdt();
 	init_idt();
-/* This is only legal since base is below 4MB */
-#define V2P(addr)		((addr) - KERNEL_VIRT_ADDR)
 	base = ROUND_PAGE_UP(V2P((unsigned long)_end));
-#undef V2P
 	size = ROUND_PAGE_DOWN(mbi->mem_upper*1024 - base);
 	init_pmm(base, size);
 	map_memory((mbi->mem_upper+1024) * 1024);	/* map all memory */
-	return;
-	init_mm();
+	init_heap();
 	init_pic();
 	init_pit();
-	init_idle();
-	init_tss();
+//	init_mm();
+//	init_idle();
+//	init_tss();
 	void do_keyboard(void *);
 	void do_timer(void *);
 	register_irq(0, do_timer, NULL);
@@ -233,6 +230,7 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	sti();
 	printk("Found %u MB of memory.\n", get_mem_size()/1024/1024);
 	printk("Memory used: %u bytes.\n", get_used_mem());
+	return;
 	
 	kernel_thread(kthread_func, "1");
 	kernel_thread(kthread_func, "2");

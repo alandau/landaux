@@ -4,9 +4,6 @@
 #include <string.h>
 #include <mem.h>
 
-/* This is only legal since the text framebuffer is below 4MB */
-#define P2V(addr)		((addr) + KERNEL_VIRT_ADDR)
-
 static u16 cursor = 0;
 static char *screen = (char *)P2V(0xB8000);
 static u8 color = 0x07;

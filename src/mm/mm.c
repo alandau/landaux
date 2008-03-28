@@ -209,7 +209,7 @@ void init_mm(void)
 	init_task_mm(&current->mm);
 #endif
 }
-
+#if 0
 u32 get_mem_size()
 {
 	return memsize;
@@ -224,7 +224,7 @@ u32 get_free_mem()
 {
 	return memsize - memused;
 }
-
+#endif
 
 // given the pte at (first1, second1), find the next pte and put it's address at (*first2, *second2)
 // *second2 will be NULL if *first2 points to a not-yet-allocated page
