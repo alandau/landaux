@@ -61,6 +61,20 @@ void *kmalloc(u32 size)
 			n->size = size | 1;
 			return p;
 		} else {					/* free block smaller than required */
+			/* try to merge following free blocks */
+			u32 increase = 0;
+			node_t *next_node = n; 
+			while (1) {
+				next_node = (node_t *)((u32)next_node + sizeof(node_t) + next_node->size);
+				if ((u32)next_node < (u32)heap_top && (next_node->size & 1) == 0)
+					increase += sizeof(node_t) + next_node->size;
+				else
+					break;
+			}
+			if (increase) {
+				n->size += increase;
+				continue;
+			}
 			last_free_node = n;
 			n = (node_t *)((u32)n + sizeof(node_t) + n->size);
 			continue;
@@ -70,4 +84,18 @@ void *kmalloc(u32 size)
 
 void kfree(void *p)
 {
+	node_t *next_node;
+	if (p == NULL)
+		return;
+	node_t *node = (node_t *)((u32)p - sizeof(node_t));
+	node->size &= ~1;	/* mark as free */
+	while (1) {
+		next_node = (node_t *)((u32)node + sizeof(node_t) + node->size);
+		/* if next node exists and is free, merge them */
+		if ((u32)next_node < (u32)heap_top && (next_node->size & 1) == 0)
+			node->size += sizeof(node_t) + next_node->size;
+		else
+			break;
+	}
+
 }

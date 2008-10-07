@@ -71,6 +71,8 @@ void do_keyboard(void *data)
 		static u32 size = 1;
 		void *p = kmalloc(size);
 		printk("Allocated %d bytes at %x, memused=%d\n", size, p, get_used_mem());
+		kfree(p);
+		printk("Freed %d bytes at %x, memused=%d\n", size, p, get_used_mem());
 		size *= 2;
 	}
 }
