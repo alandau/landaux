@@ -4,12 +4,15 @@ include $(dir)/Makefile
 
 MAINOBJ := $(dir)/all.o
 
-build: $(MAINOBJ)
+build: RECURSE $(MAINOBJ)
 
-$(MAINOBJ): $(addprefix $(dir)/,$(OBJS))
-	$(call recurse,build)
+$(MAINOBJ): $(addprefix $(dir)/,$(OBJS)) $(addprefix $(dir)/,$(addsuffix /all.o,$(SUBDIRS)))
 	echo "LD $(subst $(TOPDIR)/,,$(MAINOBJ))"
-	$(LD) $(LDFLAGS) -r -o $@ $^ $(addprefix $(dir)/,$(addsuffix /all.o,$(SUBDIRS)))
+	$(LD) $(LDFLAGS) -r -o $@ $^
+
+.PHONY: RECURSE
+RECURSE:
+	$(call recurse,build)
 
 .PHONY: dep
 dep:

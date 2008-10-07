@@ -198,12 +198,10 @@ static void init_idt(void)
 
 void doit(char *path)
 {
-	printk("%s\n", path);
 	dentry_t *d = lookup_path(path);
-	printk("result: %d\n", d ? d->inode->id : -1);
+	printk("%s: %s\n", path, d ? "yes" : "no");
 	if (d)
 		dentry_put(d);
-	printk("end\n");
 }
 
 /* This is the C entry point of the kernel. It runs with interrupts disabled */
@@ -249,6 +247,11 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	doit("/a");
 	doit("/a/b");
 	doit("/a/b/c");
+	doit("/x");
+	doit("/b");
+	doit("/c");
+	doit("/c/1");
+	doit("/c/2");
 
 	return;
 	

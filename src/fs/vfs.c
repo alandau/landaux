@@ -50,18 +50,6 @@ static char *get_next_component(char **path)
 	return ret;
 }
 
-inode_t *inode_get(inode_t *i)
-{
-	i->refcnt++;
-	return i;
-}
-
-void inode_put(inode_t *i)
-{
-	if (--i->refcnt == 0)
-		kfree(i);
-}
-
 dentry_t *dentry_get(dentry_t *d)
 {
 	d->refcnt++;
@@ -71,10 +59,9 @@ dentry_t *dentry_get(dentry_t *d)
 void dentry_put(dentry_t *d)
 {
 	if (--d->refcnt == 0) {
-		inode_put(d->inode);
 		if (d->parent)
 			dentry_put(d->parent);
-		printk("freeing dentry: %s\n", d->name);
+		kfree(d->priv);
 		kfree(d);
 	}
 }
@@ -97,17 +84,16 @@ dentry_t *lookup_path(char *path)
 			return NULL;
 		}
 		if (d->mnt) {	/* is mountpoint */
-			ret = d->mnt->fs->lookup(d->mnt, d->mnt->root_dentry->inode, name, &new_dentry);
+			ret = d->mnt->fs->lookup(d->mnt, d->mnt->root_dentry, name, &new_dentry);
 		} else {
-			ret = d->sb->fs->lookup(d->sb, d->inode, name, &new_dentry);
+			ret = d->sb->fs->lookup(d->sb, d, name, &new_dentry);
 		}
 		if (ret < 0) {
 			kfree(name);
 			dentry_put(d);
 			return NULL;
 		}
-		new_dentry->parent = dentry_get(d);
-		dentry_put(d);
+		new_dentry->parent = d;
 		d = new_dentry;
 		kfree(name);
 	}
