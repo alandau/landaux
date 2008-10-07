@@ -26,7 +26,7 @@ LDFLAGS:= -g
 
 export CC AS CFLAGS ASFLAGS
 
-SUBDIRS:=kernel arch mm drivers
+SUBDIRS:=kernel arch mm drivers fs
 .PHONY: scripts
 .PHONY: dep
 .PHONY: tags

@@ -96,6 +96,18 @@ static inline void *strcpy(char *dest, const char *src)
 	return dest;
 }
 
+static inline int strcmp(const char *dest, const char *src)
+{
+	while (*dest) {
+		int c = *dest - *src;
+		if (c)
+			return c;
+		dest++;
+		src++;
+	}
+	return 0;
+}
+
 static inline unsigned long strlen(const char *s)
 {
 	int tmp;

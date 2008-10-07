@@ -99,3 +99,11 @@ void kfree(void *p)
 	}
 
 }
+
+void *kzalloc(u32 size)
+{
+	void *p = kmalloc(size);
+	if (p)
+		memset(p, 0, size);
+	return p;
+}

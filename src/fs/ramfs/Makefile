@@ -1,0 +1,1 @@
+OBJS += ramfs.o

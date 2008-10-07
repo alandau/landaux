@@ -9,6 +9,7 @@
 #include <sched.h>
 #include <block.h>
 #include <string.h>
+#include <fs.h>
 
 #define GDT_MAX_ENTRIES 3
 #define IDT_MAX_ENTRIES (32+16+1)
@@ -195,6 +196,16 @@ static void init_idt(void)
 	__asm__ __volatile__ ("lidt %0\n\t" : /* no output */ : "m"(idtr));
 }
 
+void doit(char *path)
+{
+	printk("%s\n", path);
+	dentry_t *d = lookup_path(path);
+	printk("result: %d\n", d ? d->inode->id : -1);
+	if (d)
+		dentry_put(d);
+	printk("end\n");
+}
+
 /* This is the C entry point of the kernel. It runs with interrupts disabled */
 void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 {
@@ -230,6 +241,15 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	sti();
 	printk("Found %u MB of memory.\n", get_mem_size()/1024/1024);
 	printk("Memory used: %u bytes.\n", get_used_mem());
+
+	int init_ramfs(void);
+	init_ramfs();
+	vfs_mount("ramfs", "/");
+	doit("/");
+	doit("/a");
+	doit("/a/b");
+	doit("/a/b/c");
+
 	return;
 	
 	kernel_thread(kthread_func, "1");
