@@ -32,11 +32,11 @@ void *kmalloc(u32 size)
 	while (1) {
 		if ((u8 *)n >= heap_top) {
 			u32 frame;
-			printk("n=%x, heap_top=%x\n", n, heap_top);
 			BUG_ON((u8 *)n > heap_top);
 			frame = alloc_phys_page();
 			if (frame == 0) {
 				printk("Allocation of %d bytes failed!\n", size);
+				print_stack(NULL);
 				return NULL;
 			}
 			map_page(frame, (u32)heap_top);
@@ -66,4 +66,8 @@ void *kmalloc(u32 size)
 			continue;
 		}
 	}
+}
+
+void kfree(void *p)
+{
 }

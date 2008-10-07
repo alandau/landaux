@@ -9,8 +9,10 @@ void map_memory(u32 size)
 {
 	pte_t *pde = page_dir + (KERNEL_VIRT_ADDR >> 22);
 	u32 i, j;
+	int first_frame;
 	/* The first 4MB are already mapped */
 	size -= 4*1024*1024;
+	first_frame = (4*1024*1024) / PAGE_SIZE;
 	pde++;
 	size >>= PAGE_SHIFT;
 	BUG_ON((size % 1024) != 0);
@@ -23,7 +25,7 @@ void map_memory(u32 size)
 		pde->reserved = 0;
 		pte = (pte_t *)P2V(frame << PAGE_SHIFT);
 		for (j = 0; j < 1024; j++) {
-			pte->frame = i * 1024 + j;
+			pte->frame = first_frame + i * 1024 + j;
 			pte->flags = PTE_PRESENT | PTE_WRITE;
 			pte->reserved = 0;
 			pte++;
