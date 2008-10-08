@@ -37,8 +37,10 @@ typedef struct {
 typedef struct fs {
 	char *name;
 	int (*mount)(superblock_t *sb);
-	int (*lookup)(dentry_t *d, char *name, dentry_t **new_d);
+	dentry_t *(*lookup)(dentry_t *d, char *name);
 	int (*getdents)(dentry_t *d, void *buf, u32 size, int start);
+	int (*mkdir)(dentry_t *d, char *name);
+	int (*rmdir)(dentry_t *d);
 } fs_t;
 
 dentry_t *dentry_get(dentry_t *d);
@@ -46,8 +48,13 @@ void dentry_put(dentry_t *d);
 int vfs_add_dentry(void **buffer, u32 *bufsize, char *name, u32 mode, u32 size);
 
 int register_fs(fs_t *fs);
-dentry_t *lookup_path(char *path);
+dentry_t *lookup_path(const char *path);
 int vfs_mount(char *fstype, char *path);
-int vfs_getdents(dentry_t *d, void *buf, u32 size, int start);
+int vfs_dgetdents(dentry_t *d, void *buf, u32 size, int start);
+int vfs_dmkdir(dentry_t *d, char *name);
+int vfs_drmdir(dentry_t *d);
+int vfs_getdents(const char *path, void *buf, u32 size, int start);
+int vfs_mkdir(const char *path);
+int vfs_rmdir(const char *path);
 
 #endif

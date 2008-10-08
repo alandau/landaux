@@ -13,15 +13,17 @@ static dentry_t *make_node(dentry_t *parent, char *name, u32 mode)
 	dpriv_t *dpriv;
 	dpriv_t *parent_dpriv;
 	dentry_t *d;
-	if (DIR_TYPE(parent->mode) != DIR_DIR)
-		goto out;
+	int err;
        	d = kzalloc(sizeof(dentry_t));
-	if (!d)
+	if (!d) {
+		err = -ENOMEM;
 		goto out;
+	}
 	dpriv = kzalloc(sizeof(dpriv_t));
-	if (!dpriv)
+	if (!dpriv) {
+		err = -ENOMEM;
 		goto fail_dpriv;
-	dentry_get(d);
+	}
 	strcpy(d->name, name);
 	d->mode = mode;
 	d->sb = parent->sb;
@@ -30,11 +32,11 @@ static dentry_t *make_node(dentry_t *parent, char *name, u32 mode)
 	list_init(&dpriv->children);
 	parent_dpriv = (dpriv_t *)parent->priv;
 	list_add_tail(&parent_dpriv->children, &dpriv->header);
-	return d;
+	return dentry_get(d);
 fail_dpriv:
 	kfree(d);
 out:
-	return NULL;
+	return ERR_PTR(err);
 }
 
 static int ramfs_mount(superblock_t *sb)
@@ -58,9 +60,11 @@ static int ramfs_mount(superblock_t *sb)
 	d->priv = dpriv;
 
 	/* populate ramfs */
+	dentry_t *e;
 	make_node(d, "a", DIR_FILE);
 	make_node(d, "b", DIR_FILE);
-	make_node(make_node(d, "c", DIR_DIR), "1", DIR_FILE);
+	e = make_node(d, "c", DIR_DIR);
+	make_node(e, "1", DIR_FILE);
 
 	return 0;
 fail_priv:
@@ -69,20 +73,18 @@ out:
 	return -ENOMEM;
 }
 
-static int ramfs_lookup(dentry_t *d, char *name, dentry_t **new_d)
+static dentry_t *ramfs_lookup(dentry_t *d, char *name)
 {
 	dpriv_t *priv = d->priv;
 	list_t *iter;
 	if (DIR_TYPE(d->mode) != DIR_DIR)
-		return -ENOTDIR;
+		return ERR_PTR(-ENOTDIR);
 	list_for_each(&priv->children, iter) {
 		dpriv_t *i = list_get(iter, dpriv_t, header);
-		if (strcmp(i->dentry->name, name) == 0) {
-			*new_d = dentry_get(i->dentry);
-			return 0;
-		}
+		if (strcmp(i->dentry->name, name) == 0)
+			return dentry_get(i->dentry);
 	}
-	return -ENOENT;
+	return ERR_PTR(-ENOENT);
 }
 
 static int ramfs_getdents(dentry_t *d, void *buf, u32 size, int start)
@@ -110,11 +112,31 @@ static int ramfs_getdents(dentry_t *d, void *buf, u32 size, int start)
 	return count;
 }
 
+static int ramfs_mkdir(dentry_t *d, char *name)
+{
+	void *err = make_node(d, name, DIR_DIR);
+	if (IS_ERR(err))
+		return PTR_ERR(err);
+	return 0;
+}
+
+static int ramfs_rmdir(dentry_t *d)
+{
+	dpriv_t *priv = d->priv;
+	if (!list_empty(&priv->children))
+		return -ENOTEMPTY;
+	list_del(&priv->header);
+	dentry_put(d);
+	return 0;
+}
+
 static fs_t ramfs_fs = {
 	.name = "ramfs",
 	.mount = ramfs_mount,
 	.lookup = ramfs_lookup,
 	.getdents = ramfs_getdents,
+	.mkdir = ramfs_mkdir,
+	.rmdir = ramfs_rmdir,
 };
 
 int init_ramfs(void)

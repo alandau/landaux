@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <errno.h>
 #include <string.h>
+#include <err.h>
 
 int printk(const char *format, ...);
 int sprintf(char *str, const char *format, ...);

@@ -20,7 +20,7 @@ CC=gcc
 AS=gcc
 LD=ld
 INCLUDE=$(TOPDIR)/include
-CFLAGS := -I$(INCLUDE) -finline-functions -fno-stack-protector -nostdinc -Wall -Wstrict-prototypes -g $(OPT_CFLAGS)
+CFLAGS := -I$(INCLUDE) -finline-functions -fno-stack-protector -fno-builtin -nostdinc -Wall -Wstrict-prototypes -g $(OPT_CFLAGS)
 ASFLAGS:= -DASM -I$(INCLUDE) -g
 LDFLAGS:= -g
 

@@ -202,14 +202,14 @@ void tree(char *path, int indent)
 	int i;
 	user_dentry_t *dp;
 	dentry_t *d = lookup_path(path);
-	if (!d)
+	if (IS_ERR(d))
 		return;
 	for (i=0; i<indent; i++)
 		printk(" ");
 	printk("D:%s\n", path);
 	int count, start = 0;
 	while (1) {
-		count = vfs_getdents(d, buf, 17, start);
+		count = vfs_dgetdents(d, buf, 17, start);
 		if (count < 0) {
 			printk("count=%d\n", count);
 			break;
@@ -222,7 +222,8 @@ void tree(char *path, int indent)
 				char *s = kmalloc(strlen(path) + 1 + strlen(dp->name) + 1);
 				s[0] = '\0';
 				strcpy(s, path);
-				strcat(s, "/");
+				if (path[strlen(path)-1] != '/')
+					strcat(s, "/");
 				strcat(s, dp->name);
 				tree(s, indent+1);
 				kfree(s);
@@ -279,6 +280,24 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	init_ramfs();
 	vfs_mount("ramfs", "/");
 	tree("/", 0);
+	int ret;
+	ret=vfs_mkdir("/q"); if (ret<0) printk("1 ret=%d\n", ret);
+	ret=vfs_mkdir("/q/w"); if (ret<0) printk("2 ret=%d\n", ret);
+	ret=vfs_mkdir("/q/r/y"); if (ret<0) printk("3 ret=%d\n", ret);
+	ret=vfs_mkdir("//q///w//4/"); if (ret<0) printk("4 ret=%d\n", ret);
+	ret=vfs_mkdir("/c/2"); if (ret<0) printk("5 ret=%d\n", ret);
+	ret=vfs_mkdir("/c/1/no"); if (ret<0) printk("6 ret=%d\n", ret);
+	tree("/", 0);
+#if 0
+	char str[10];
+	strcpy(str, "qwe"); printk("%s\n", dirname(str));
+	strcpy(str, "qwe/"); printk("%s\n", dirname(str));
+	strcpy(str, "qwe//"); printk("%s\n", dirname(str));
+	strcpy(str, "/qwe"); printk("%s\n", dirname(str));
+	strcpy(str, "//q/we"); printk("%s\n", dirname(str));
+	strcpy(str, "q/w/e/"); printk("%s\n", dirname(str));
+	strcpy(str, "q/w/e"); printk("%s\n", dirname(str));
+#endif
 	return;
 	
 	kernel_thread(kthread_func, "1");

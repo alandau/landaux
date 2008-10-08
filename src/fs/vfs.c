@@ -66,32 +66,31 @@ void dentry_put(dentry_t *d)
 	}
 }
 
-dentry_t *lookup_path(char *path)
+dentry_t *lookup_path(const char *path)
 {
 	dentry_t *d = dentry_get(rootfs->root_dentry);
 	BUG_ON(path[0] != '/');
 	while (1) {
 		char *name;
 		dentry_t *new_dentry;
-		int ret;
 		while (*path == '/')
 			path++;
 		if (*path == '\0')
 			break;
-		name = get_next_component(&path);
+		name = get_next_component((char **)&path);
 		if (name == NULL) {
 			dentry_put(d);
-			return NULL;
+			return ERR_PTR(-ENOMEM);
 		}
 		if (d->mnt) {	/* is mountpoint */
-			ret = d->mnt->fs->lookup(d->mnt->root_dentry, name, &new_dentry);
+			new_dentry = d->mnt->fs->lookup(d->mnt->root_dentry, name);
 		} else {
-			ret = d->sb->fs->lookup(d, name, &new_dentry);
+			new_dentry = d->sb->fs->lookup(d, name);
 		}
-		if (ret < 0) {
+		if (IS_ERR(new_dentry)) {
 			kfree(name);
 			dentry_put(d);
-			return NULL;
+			return new_dentry;
 		}
 		new_dentry->parent = d;
 		d = new_dentry;
@@ -120,7 +119,7 @@ int vfs_add_dentry(void **buffer, u32 *bufsize, char *name, u32 mode, u32 size)
  * Fills buf of size bytes with dentries under directory d, starting with #start.
  * Returns the number of dentries filled, 0 for end, <0 for error.
  */
-int vfs_getdents(dentry_t *d, void *buf, u32 size, int start)
+int vfs_dgetdents(dentry_t *d, void *buf, u32 size, int start)
 {
 	int ret;
 	if (d->mnt) {	/* is mountpoint */
@@ -128,5 +127,67 @@ int vfs_getdents(dentry_t *d, void *buf, u32 size, int start)
 	} else {
 		ret = d->sb->fs->getdents(d, buf, size, start);
 	}
+	return ret;
+}
+
+int vfs_dmkdir(dentry_t *d, char *name)
+{
+	int ret;
+	BUG_ON(strchr(name, '/') != NULL);
+	if (DIR_TYPE(d->mode) != DIR_DIR)
+		return -ENOTDIR;
+	if (d->mnt) {	/* is mountpoint */
+		ret = d->mnt->fs->mkdir(d->mnt->root_dentry, name);
+	} else {
+		ret = d->sb->fs->mkdir(d, name);
+	}
+	return ret;
+}
+
+int vfs_drmdir(dentry_t *d)
+{
+	if (DIR_TYPE(d->mode) != DIR_DIR)
+		return -ENOTDIR;
+	if (d->mnt || !d->parent) 	/* is mountpoint */
+		return -EBUSY;
+	return d->sb->fs->rmdir(d);
+}
+
+int vfs_getdents(const char *path, void *buf, u32 size, int start)
+{
+	int ret;
+	dentry_t *d = lookup_path(path);
+	if (IS_ERR(d))
+		return PTR_ERR(d);
+	ret = vfs_dgetdents(d, buf, size, start);
+	dentry_put(d);
+	return ret;
+}
+
+int vfs_mkdir(const char *path)
+{
+	int ret;
+	char *p = strdup(path);
+	if (!p)
+		return -ENOMEM;
+	char *base = basename(p);
+	char *dir = dirname(p);
+	dentry_t *d = lookup_path(dir);
+	if (IS_ERR(d))
+		return PTR_ERR(d);
+	ret = vfs_dmkdir(d, base);
+	dentry_put(d);
+	kfree(p);
+	return ret;
+}
+
+int vfs_rmdir(const char *path)
+{
+	int ret;
+	dentry_t *d = lookup_path(path);
+	if (IS_ERR(d))
+		return PTR_ERR(d);
+	ret = vfs_drmdir(d);
+	dentry_put(d);
 	return ret;
 }

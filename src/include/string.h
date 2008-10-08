@@ -12,5 +12,12 @@ void *strcpy(char *dest, const char *src);
 int strcmp(const char *dest, const char *src);
 unsigned long strlen(const char *s);
 char *strcat(char *dest, const char *src);
+char *strchr(const char *str, char c);
+char *strrchr(const char *str, char c);
+char *strdup(const char *s);
+
+/* These modify the string */
+char *basename(char *s);
+char *dirname(char *s);
 
 #endif
