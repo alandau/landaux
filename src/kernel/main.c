@@ -196,12 +196,47 @@ static void init_idt(void)
 	__asm__ __volatile__ ("lidt %0\n\t" : /* no output */ : "m"(idtr));
 }
 
-void doit(char *path)
+void tree(char *path, int indent)
 {
+	char buf[50];
+	int i;
+	user_dentry_t *dp;
 	dentry_t *d = lookup_path(path);
-	printk("%s: %s\n", path, d ? "yes" : "no");
-	if (d)
-		dentry_put(d);
+	if (!d)
+		return;
+	for (i=0; i<indent; i++)
+		printk(" ");
+	printk("D:%s\n", path);
+	int count, start = 0;
+	while (1) {
+		count = vfs_getdents(d, buf, 17, start);
+		if (count < 0) {
+			printk("count=%d\n", count);
+			break;
+		}
+		if (count == 0)
+			break;
+		dp = (user_dentry_t *)buf;
+		for (i = 0; i < count; i++) {
+			if (DIR_TYPE(dp->mode) == DIR_DIR) {
+				char *s = kmalloc(strlen(path) + 1 + strlen(dp->name) + 1);
+				s[0] = '\0';
+				strcpy(s, path);
+				strcat(s, "/");
+				strcat(s, dp->name);
+				tree(s, indent+1);
+				kfree(s);
+			} else {
+				int j;
+				for (j=0; j<indent+1; j++)
+					printk(" ");
+				printk("F:%s\n", dp->name);
+			}
+			dp = (user_dentry_t *)(buf + dp->reclen);
+		}
+		start += count;
+	}
+	dentry_put(d);
 }
 
 /* This is the C entry point of the kernel. It runs with interrupts disabled */
@@ -243,16 +278,7 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	int init_ramfs(void);
 	init_ramfs();
 	vfs_mount("ramfs", "/");
-	doit("/");
-	doit("/a");
-	doit("/a/b");
-	doit("/a/b/c");
-	doit("/x");
-	doit("/b");
-	doit("/c");
-	doit("/c/1");
-	doit("/c/2");
-
+	tree("/", 0);
 	return;
 	
 	kernel_thread(kthread_func, "1");

@@ -123,7 +123,7 @@ static inline unsigned long strlen(const char *s)
 	return res;
 }
 
-static inline void *strcat(char *dest, const char *src)
+static inline char *strcat(char *dest, const char *src)
 {
 	strcpy(dest + strlen(dest), src);
 	return dest;

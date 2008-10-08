@@ -84,9 +84,9 @@ dentry_t *lookup_path(char *path)
 			return NULL;
 		}
 		if (d->mnt) {	/* is mountpoint */
-			ret = d->mnt->fs->lookup(d->mnt, d->mnt->root_dentry, name, &new_dentry);
+			ret = d->mnt->fs->lookup(d->mnt->root_dentry, name, &new_dentry);
 		} else {
-			ret = d->sb->fs->lookup(d->sb, d, name, &new_dentry);
+			ret = d->sb->fs->lookup(d, name, &new_dentry);
 		}
 		if (ret < 0) {
 			kfree(name);
@@ -98,4 +98,35 @@ dentry_t *lookup_path(char *path)
 		kfree(name);
 	}
 	return d;
+}
+
+int vfs_add_dentry(void **buffer, u32 *bufsize, char *name, u32 mode, u32 size)
+{
+	user_dentry_t **d = (user_dentry_t **)buffer;
+	int len = strlen(name);
+	int totallen = ((sizeof(user_dentry_t) + len + 1) + 3) & ~3;	/* round up */
+	if (*bufsize < totallen)
+		return 0;
+	(*d)->reclen = totallen;	
+	(*d)->mode = mode;
+	(*d)->size = size;
+	memcpy((*d)->name, name, len + 1);
+	*bufsize -= totallen;
+	*d = (user_dentry_t *)((char *)*d + totallen);
+	return 1;
+}
+
+/* 
+ * Fills buf of size bytes with dentries under directory d, starting with #start.
+ * Returns the number of dentries filled, 0 for end, <0 for error.
+ */
+int vfs_getdents(dentry_t *d, void *buf, u32 size, int start)
+{
+	int ret;
+	if (d->mnt) {	/* is mountpoint */
+		ret = d->mnt->fs->getdents(d->mnt->root_dentry, buf, size, start);
+	} else {
+		ret = d->sb->fs->getdents(d, buf, size, start);
+	}
+	return ret;
 }
