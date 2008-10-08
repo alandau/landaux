@@ -1,0 +1,1 @@
+OBJS += string.o

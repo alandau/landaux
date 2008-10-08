@@ -1,1 +1,1 @@
-OBJS += arch.o
+OBJS += arch.o string.o
