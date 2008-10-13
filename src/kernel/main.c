@@ -207,7 +207,7 @@ void tree(char *path)
 	printk("D %s\n", path);
 	int count, start = 0;
 	while (1) {
-		count = vfs_dgetdents(d, buf, 17, start);
+		count = vfs_dgetdents(d, buf, 50, start);
 		if (count < 0) {
 			printk("count=%d\n", count);
 			break;
@@ -278,13 +278,17 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	int ret;
 	ret=vfs_mkdir("/q"); if (ret<0) printk("1 ret=%d\n", ret);
 	ret=vfs_mkdir("/q/w"); if (ret<0) printk("2 ret=%d\n", ret);
-	ret=vfs_mkdir("/q/r/y"); if (ret<0) printk("3 ret=%d\n", ret);
+	ret=vfs_mkdir("/q/r/y"); if (ret<0) printk("3! ret=%d\n", ret);
 	ret=vfs_mkdir("//q///w//4/"); if (ret<0) printk("4 ret=%d\n", ret);
 	ret=vfs_mkdir("/c/2"); if (ret<0) printk("5 ret=%d\n", ret);
-	ret=vfs_mkdir("/c/1/no"); if (ret<0) printk("6 ret=%d\n", ret);
+	ret=vfs_mkdir("/c/1/no"); if (ret<0) printk("6! ret=%d\n", ret);
 	tree("/");
 	printk("----------------------\n");
 	printk("vfs_mount=%d\n", vfs_mount("ramfs", "/q"));
+	vfs_mkdir("/q/something/");
+	file_t *f = vfs_open("/q/something/q", O_WRONLY|O_CREAT|O_TRUNC);
+	printk("f=%p (%d)\n", f, f);
+	vfs_close(f);
 	tree("/");
 #if 0
 	char str[10];

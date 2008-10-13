@@ -8,7 +8,7 @@ typedef struct dpriv {
 	list_t header;
 } dpriv_t;
 
-static dentry_t *make_node(dentry_t *parent, char *name, u32 mode)
+static dentry_t *make_node(dentry_t *parent, const char *name, u32 mode)
 {
 	dpriv_t *dpriv;
 	dpriv_t *parent_dpriv;
@@ -73,7 +73,7 @@ out:
 	return -ENOMEM;
 }
 
-static dentry_t *ramfs_lookup(dentry_t *d, char *name)
+static dentry_t *ramfs_lookup(dentry_t *d, const char *name)
 {
 	dpriv_t *priv = d->priv;
 	list_t *iter;
@@ -112,7 +112,7 @@ static int ramfs_getdents(dentry_t *d, void *buf, u32 size, int start)
 	return count;
 }
 
-static int ramfs_mkdir(dentry_t *d, char *name)
+static int ramfs_mkdir(dentry_t *d, const char *name)
 {
 	void *err = make_node(d, name, DIR_DIR);
 	if (IS_ERR(err))
@@ -129,6 +129,13 @@ static int ramfs_rmdir(dentry_t *d)
 	dentry_put(d);
 	return 0;
 }
+static int ramfs_create(dentry_t *d, const char *name)
+{
+	void *err = make_node(d, name, DIR_FILE);
+	if (IS_ERR(err))
+		return PTR_ERR(err);
+	return 0;
+}
 
 static fs_t ramfs_fs = {
 	.name = "ramfs",
@@ -137,6 +144,7 @@ static fs_t ramfs_fs = {
 	.getdents = ramfs_getdents,
 	.mkdir = ramfs_mkdir,
 	.rmdir = ramfs_rmdir,
+	.create = ramfs_create,
 };
 
 int init_ramfs(void)

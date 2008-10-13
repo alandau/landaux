@@ -109,7 +109,7 @@ void dentry_put(dentry_t *d)
 	}
 }
 
-enum {LAST_MUST_NOT_EXIST=1, LAST_MUST_BE_DIR=2, LAST_NO_SLASHES=4};
+enum {LAST_MUST_NOT_EXIST=1, LAST_MUST_BE_DIR=2, LAST_NO_SLASHES=4, LAST_RETURN=8};
 
 static dentry_t *lookup_path_common(const char *path, int last_flags, char **last_name)
 {
@@ -128,6 +128,9 @@ static dentry_t *lookup_path_common(const char *path, int last_flags, char **las
 			dentry_put(d);
 			return ERR_PTR(-ENOMEM);
 		}
+		if ((type == COMP_LAST || (type == COMP_LAST_SLASH && (last_flags & ~LAST_NO_SLASHES))) &&
+			(last_flags & LAST_RETURN))
+			break;
 		if (d->mnt) {	/* is mountpoint */
 			new_dentry = d->mnt->fs->lookup(d->mnt->root_dentry, name);
 		} else {
@@ -276,5 +279,95 @@ int vfs_rmdir(const char *path)
 		return PTR_ERR(d);
 	ret = vfs_drmdir(d);
 	dentry_put(d);
+	return ret;
+}
+
+file_t *vfs_dopen(dentry_t *d, const char *name, int flags)
+{
+	file_t *f;
+	dentry_t *fd;
+
+	if (d->mnt)	/* is mountpoint */
+		d = d->mnt->root_dentry;
+	fd = d->sb->fs->lookup(d, name);
+	if (flags & O_CREAT) {
+		if (IS_ERR(fd)) {
+			if (!d->sb->fs->create)
+				return ERR_PTR(-ENOSYS);
+			int ret = d->sb->fs->create(d, name);
+			if (ret < 0)
+				return ERR_PTR(ret);
+			fd = d->sb->fs->lookup(d, name);
+			if (IS_ERR(fd))
+				return (void *)fd;
+		} else {
+			if (DIR_TYPE(fd->mode) == DIR_DIR) {
+				dentry_put(fd);
+				return ERR_PTR(-EISDIR);
+			}
+			if (flags & O_EXCL) {
+				dentry_put(fd);
+				return ERR_PTR(-EEXIST);
+			}
+		}
+	} else {
+		if (IS_ERR(fd))
+			return (void *)fd;
+		else {
+			if (DIR_TYPE(fd->mode) == DIR_DIR) {
+				dentry_put(fd);
+				return ERR_PTR(-EISDIR);
+			}
+		}
+	}
+	f = kzalloc(sizeof(file_t));
+	if (!f) {
+		dentry_put(fd);
+		return ERR_PTR(-ENOMEM);
+	}
+	f->dentry = dentry_get(fd);
+	f->openmode = flags & O_RDWR;
+	f->offset = (flags & O_APPEND) ? fd->size : 0;
+	if (fd->sb->fs->open) {
+		int ret = fd->sb->fs->open(f, flags);
+		if (ret < 0) {
+			kfree(f);
+			dentry_put(fd);
+			return ERR_PTR(ret);
+		}
+	}
+	if ((flags & O_TRUNC) && fd->sb->fs->truncate) {
+		int ret = fd->sb->fs->truncate(f);
+		if (ret < 0) {
+			if (fd->sb->fs->close)
+				fd->sb->fs->close(f);
+			kfree(f);
+			dentry_put(fd);
+			return ERR_PTR(ret);
+		}
+	}
+	return f;
+}
+
+file_t *vfs_open(const char *path, int flags)
+{
+	char *name;
+	file_t *ret;
+	dentry_t *d = lookup_path_common(path, LAST_RETURN | LAST_NO_SLASHES, &name);
+	if (IS_ERR(d))
+		return (void *)d;
+	ret = vfs_dopen(d, name, flags);
+	kfree(name);
+	dentry_put(d);
+	return ret;
+}
+
+int vfs_close(file_t *f)
+{
+	int ret = 0;
+	if (f->dentry->sb->fs->close)
+		ret = f->dentry->sb->fs->close(f);
+	dentry_put(f->dentry);
+	kfree(f);
 	return ret;
 }

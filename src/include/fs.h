@@ -3,6 +3,15 @@
 
 #include <stddef.h>
 
+#define O_RDONLY	1
+#define O_WRONLY	2
+#define O_RDWR		3
+
+#define O_APPEND	4
+#define O_CREAT		8
+#define O_EXCL		16
+#define O_TRUNC		32
+
 #define PATH_MAX 255
 
 typedef struct superblock {
@@ -34,13 +43,24 @@ typedef struct {
 	char name[0];
 } user_dentry_t;
 
+typedef struct {
+	dentry_t *dentry;
+	int openmode;
+	u32 offset;
+	void *priv;
+} file_t;
+
 typedef struct fs {
 	char *name;
 	int (*mount)(superblock_t *sb);
-	dentry_t *(*lookup)(dentry_t *d, char *name);
+	dentry_t *(*lookup)(dentry_t *d, const char *name);
 	int (*getdents)(dentry_t *d, void *buf, u32 size, int start);
-	int (*mkdir)(dentry_t *d, char *name);
+	int (*mkdir)(dentry_t *d, const char *name);
 	int (*rmdir)(dentry_t *d);
+	int (*create)(dentry_t *d, const char *name);
+	int (*open)(file_t *f, int flags);
+	int (*truncate)(file_t *f);
+	int (*close)(file_t *f);
 } fs_t;
 
 dentry_t *dentry_get(dentry_t *d);
@@ -56,8 +76,11 @@ int vfs_mount(char *fstype, char *path);
 int vfs_dgetdents(dentry_t *d, void *buf, u32 size, int start);
 int vfs_dmkdir(dentry_t *d, char *name);
 int vfs_drmdir(dentry_t *d);
+file_t *vfs_dopen(dentry_t *d, const char *name, int flags);
+int vfs_close(file_t *f);
 int vfs_getdents(const char *path, void *buf, u32 size, int start);
 int vfs_mkdir(const char *path);
 int vfs_rmdir(const char *path);
+file_t *vfs_open(const char *name, int flags);
 
 #endif
