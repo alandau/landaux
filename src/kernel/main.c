@@ -196,7 +196,7 @@ static void init_idt(void)
 	__asm__ __volatile__ ("lidt %0\n\t" : /* no output */ : "m"(idtr));
 }
 
-void tree(char *path, int indent)
+void tree(char *path)
 {
 	char buf[50];
 	int i;
@@ -204,9 +204,7 @@ void tree(char *path, int indent)
 	dentry_t *d = lookup_path(path);
 	if (IS_ERR(d))
 		return;
-	for (i=0; i<indent; i++)
-		printk(" ");
-	printk("D:%s\n", path);
+	printk("D %s\n", path);
 	int count, start = 0;
 	while (1) {
 		count = vfs_dgetdents(d, buf, 17, start);
@@ -225,13 +223,10 @@ void tree(char *path, int indent)
 				if (path[strlen(path)-1] != '/')
 					strcat(s, "/");
 				strcat(s, dp->name);
-				tree(s, indent+1);
+				tree(s);
 				kfree(s);
 			} else {
-				int j;
-				for (j=0; j<indent+1; j++)
-					printk(" ");
-				printk("F:%s\n", dp->name);
+				printk("F %s%s%s\n", path, path[strlen(path)-1]=='/'?"":"/", dp->name);
 			}
 			dp = (user_dentry_t *)(buf + dp->reclen);
 		}
@@ -279,7 +274,7 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	int init_ramfs(void);
 	init_ramfs();
 	vfs_mount("ramfs", "/");
-	tree("/", 0);
+	tree("/");
 	int ret;
 	ret=vfs_mkdir("/q"); if (ret<0) printk("1 ret=%d\n", ret);
 	ret=vfs_mkdir("/q/w"); if (ret<0) printk("2 ret=%d\n", ret);
@@ -287,7 +282,10 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	ret=vfs_mkdir("//q///w//4/"); if (ret<0) printk("4 ret=%d\n", ret);
 	ret=vfs_mkdir("/c/2"); if (ret<0) printk("5 ret=%d\n", ret);
 	ret=vfs_mkdir("/c/1/no"); if (ret<0) printk("6 ret=%d\n", ret);
-	tree("/", 0);
+	tree("/");
+	printk("----------------------\n");
+	printk("vfs_mount=%d\n", vfs_mount("ramfs", "/q"));
+	tree("/");
 #if 0
 	char str[10];
 	strcpy(str, "qwe"); printk("%s\n", dirname(str));

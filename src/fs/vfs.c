@@ -28,10 +28,39 @@ int vfs_mount(char *fstype, char *path)
 {
 	int fs = find_fs(fstype);
 	if (fs == -1)
+		return -ENODEV;
+	if (rootfs->root_dentry == NULL) {
+		if (strcmp(path, "/") != 0)
+			return -ENODEV;
+		memset(rootfs, 0, sizeof(superblock_t));
+		rootfs->fs = fs_list[fs];
+		return rootfs->fs->mount(rootfs);
+	}
+	dentry_t *d = lookup_path(path);
+	if (!d)
 		return -ENOENT;
-	memset(rootfs, 0, sizeof(superblock_t));
-	rootfs->fs = fs_list[fs];
-	return rootfs->fs->mount(rootfs);
+	if (DIR_TYPE(d->mode) != DIR_DIR) {
+		dentry_put(d);
+		return -ENOTDIR;
+	}
+	if (d->mnt != NULL) {
+		dentry_put(d);
+		return -EBUSY;
+	}
+	superblock_t *sb = kzalloc(sizeof(superblock_t));
+	if (!sb) {
+		dentry_put(d);
+		return -ENOMEM;
+	}
+	sb->fs = fs_list[fs];
+	int ret = sb->fs->mount(sb);
+	if (ret < 0) {
+		dentry_put(d);
+		kfree(sb);
+		return ret;
+	}
+	d->mnt = sb;
+	return 0;
 }
 
 static char *get_next_component(char **path)
