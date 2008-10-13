@@ -201,7 +201,7 @@ void tree(char *path)
 	char buf[50];
 	int i;
 	user_dentry_t *dp;
-	dentry_t *d = lookup_path(path);
+	dentry_t *d = lookup_path_dir(path);
 	if (IS_ERR(d))
 		return;
 	printk("D %s\n", path);

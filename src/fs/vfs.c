@@ -36,9 +36,9 @@ int vfs_mount(char *fstype, char *path)
 		rootfs->fs = fs_list[fs];
 		return rootfs->fs->mount(rootfs);
 	}
-	dentry_t *d = lookup_path(path);
-	if (!d)
-		return -ENOENT;
+	dentry_t *d = lookup_path_dir(path);
+	if (IS_ERR(d))
+		return PTR_ERR(d);
 	if (DIR_TYPE(d->mode) != DIR_DIR) {
 		dentry_put(d);
 		return -ENOTDIR;
@@ -63,18 +63,32 @@ int vfs_mount(char *fstype, char *path)
 	return 0;
 }
 
-static char *get_next_component(char **path)
+enum {COMP_NO_MORE, COMP_NORM, COMP_LAST, COMP_LAST_SLASH};
+
+static int get_next_component(char **path, char **name)
 {
-	char *p = *path, *ret;
+	char *p = *path, *buf;
+	int ret;
 	if (*p == '\0')
-		return NULL;
+		return COMP_NO_MORE;
 	while (*p && *p != '/')
 		p++;
-	ret = kmalloc(p - *path + 1);
-	if (!ret)
-		return NULL;
-	memcpy(ret, *path, p - *path);
-	ret[p - *path] = '\0';
+	buf = kmalloc(p - *path + 1);
+	if (!buf)
+		return COMP_NO_MORE;
+	memcpy(buf, *path, p - *path);
+	buf[p - *path] = '\0';
+	*name = buf;
+	ret = COMP_NORM;
+	if (!*p)
+		ret = COMP_LAST;
+	else if (*p == '/') {
+		while (*p == '/')
+			p++;
+		if (!*p)
+			ret = COMP_LAST_SLASH;
+	} else
+		BUG();
 	*path = p;
 	return ret;
 }
@@ -95,19 +109,22 @@ void dentry_put(dentry_t *d)
 	}
 }
 
-dentry_t *lookup_path(const char *path)
+enum {LAST_MUST_NOT_EXIST=1, LAST_MUST_BE_DIR=2, LAST_NO_SLASHES=4};
+
+static dentry_t *lookup_path_common(const char *path, int last_flags, char **last_name)
 {
 	dentry_t *d = dentry_get(rootfs->root_dentry);
+	char *name;
 	BUG_ON(path[0] != '/');
+	while (*path == '/')
+		path++;
+	if (*path == '\0')
+		return d;
 	while (1) {
-		char *name;
+		int type;
 		dentry_t *new_dentry;
-		while (*path == '/')
-			path++;
-		if (*path == '\0')
-			break;
-		name = get_next_component((char **)&path);
-		if (name == NULL) {
+		type = get_next_component((char **)&path, &name);
+		if (type == COMP_NO_MORE) {
 			dentry_put(d);
 			return ERR_PTR(-ENOMEM);
 		}
@@ -117,15 +134,60 @@ dentry_t *lookup_path(const char *path)
 			new_dentry = d->sb->fs->lookup(d, name);
 		}
 		if (IS_ERR(new_dentry)) {
+			if (PTR_ERR(new_dentry) == -ENOENT &&
+				(type == COMP_LAST || (type == COMP_LAST_SLASH && (last_flags & ~LAST_NO_SLASHES))) &&
+				(last_flags & LAST_MUST_NOT_EXIST))
+				break;
 			kfree(name);
 			dentry_put(d);
 			return new_dentry;
 		}
 		new_dentry->parent = d;
 		d = new_dentry;
+		if ((type == COMP_LAST || (type == COMP_LAST_SLASH && (last_flags & ~LAST_NO_SLASHES))) &&
+			(last_flags & LAST_MUST_NOT_EXIST)) {
+				kfree(name);
+				dentry_put(d);
+				return ERR_PTR(-ENOENT);
+		}
+		if (DIR_TYPE(d->mode) != DIR_DIR) {
+			if (type == COMP_NORM || type == COMP_LAST_SLASH || (last_flags & LAST_MUST_BE_DIR)) {
+				kfree(name);
+				dentry_put(d);
+				return ERR_PTR(-ENOTDIR);
+			}
+			break;
+		}
+		/* should check for LAST_NO_SLASHES? */
+		if (type == COMP_LAST || type == COMP_LAST_SLASH)
+			break;
 		kfree(name);
 	}
+	if (last_name)
+		*last_name = name;
+	else
+		kfree(name);
 	return d;
+}
+
+dentry_t *lookup_path(const char *path)
+{
+	return lookup_path_common(path, 0, NULL);
+}
+
+dentry_t *lookup_path_dir(const char *path)
+{
+	return lookup_path_common(path, LAST_MUST_BE_DIR, NULL);
+}
+
+dentry_t *lookup_path_for_create_file(const char *path, char **last_name)
+{
+	return lookup_path_common(path, LAST_MUST_NOT_EXIST | LAST_NO_SLASHES, last_name);
+}
+
+dentry_t *lookup_path_for_create_dir(const char *path, char **last_name)
+{
+	return lookup_path_common(path, LAST_MUST_NOT_EXIST, last_name);
 }
 
 int vfs_add_dentry(void **buffer, u32 *bufsize, char *name, u32 mode, u32 size)
@@ -185,7 +247,7 @@ int vfs_drmdir(dentry_t *d)
 int vfs_getdents(const char *path, void *buf, u32 size, int start)
 {
 	int ret;
-	dentry_t *d = lookup_path(path);
+	dentry_t *d = lookup_path_dir(path);
 	if (IS_ERR(d))
 		return PTR_ERR(d);
 	ret = vfs_dgetdents(d, buf, size, start);
@@ -196,24 +258,20 @@ int vfs_getdents(const char *path, void *buf, u32 size, int start)
 int vfs_mkdir(const char *path)
 {
 	int ret;
-	char *p = strdup(path);
-	if (!p)
-		return -ENOMEM;
-	char *base = basename(p);
-	char *dir = dirname(p);
-	dentry_t *d = lookup_path(dir);
+	char *name;
+	dentry_t *d = lookup_path_for_create_dir(path, &name);
 	if (IS_ERR(d))
 		return PTR_ERR(d);
-	ret = vfs_dmkdir(d, base);
+	ret = vfs_dmkdir(d, name);
 	dentry_put(d);
-	kfree(p);
+	kfree(name);
 	return ret;
 }
 
 int vfs_rmdir(const char *path)
 {
 	int ret;
-	dentry_t *d = lookup_path(path);
+	dentry_t *d = lookup_path_dir(path);
 	if (IS_ERR(d))
 		return PTR_ERR(d);
 	ret = vfs_drmdir(d);
