@@ -325,7 +325,7 @@ file_t *vfs_dopen(dentry_t *d, const char *name, int flags)
 		dentry_put(fd);
 		return ERR_PTR(-ENOMEM);
 	}
-	f->dentry = dentry_get(fd);
+	f->dentry = fd;
 	f->openmode = flags & O_RDWR;
 	f->offset = (flags & O_APPEND) ? fd->size : 0;
 	if (fd->sb->fs->open) {
@@ -371,3 +371,72 @@ int vfs_close(file_t *f)
 	kfree(f);
 	return ret;
 }
+
+int vfs_read(file_t *f, char *buf, u32 size)
+{
+	if (!(f->openmode & O_RDONLY))
+		return -EINVAL;
+	if (!f->dentry->sb->fs->read)
+		return -ENOSYS;
+	if (size == 0)
+		return 0;
+	int count = f->dentry->sb->fs->read(f, f->offset, buf, size);
+	if (count > 0)
+		f->offset += count;
+	return count;
+}
+
+int vfs_write(file_t *f, const char *buf, u32 size)
+{
+	if (!(f->openmode & O_WRONLY))
+		return -EINVAL;
+	if (!f->dentry->sb->fs->write)
+		return -ENOSYS;
+	if (size == 0)
+		return 0;
+	int count = f->dentry->sb->fs->write(f, f->offset, buf, size);
+	if (count > 0)
+		f->offset += count;
+	return count;
+}
+
+int vfs_lseek(file_t *f, u32 offset, int whence)
+{
+	if (f->dentry->sb->fs->lseek)
+		return f->dentry->sb->fs->lseek(f, offset, whence);
+	switch (whence) {
+	case SEEK_END:
+		offset += f->dentry->size - f->offset;
+		/* fall through */
+	case SEEK_CUR:
+		offset += f->offset;
+		/* fall through */
+	case SEEK_SET:
+		if (offset > f->dentry->size)
+			return -EINVAL;
+		f->offset = offset;
+		return 0;
+	}
+	return -EINVAL;
+}
+
+int vfs_dunlink(dentry_t *d)
+{
+	if (DIR_TYPE(d->mode) == DIR_DIR)
+		return -EISDIR;
+	if (!d->sb->fs->unlink)
+		return -ENOSYS;
+	return d->sb->fs->unlink(d);
+}
+
+int vfs_unlink(const char *path)
+{
+	int ret;
+	dentry_t *d = lookup_path_common(path, LAST_NO_SLASHES, NULL);
+	if (IS_ERR(d))
+		return PTR_ERR(d);
+	ret = vfs_dunlink(d);
+	dentry_put(d);
+	return ret;
+}
+

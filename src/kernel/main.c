@@ -226,7 +226,7 @@ void tree(char *path)
 				tree(s);
 				kfree(s);
 			} else {
-				printk("F %s%s%s\n", path, path[strlen(path)-1]=='/'?"":"/", dp->name);
+				printk("F %d %s%s%s\n", dp->size, path, path[strlen(path)-1]=='/'?"":"/", dp->name);
 			}
 			dp = (user_dentry_t *)(buf + dp->reclen);
 		}
@@ -288,7 +288,17 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	vfs_mkdir("/q/something/");
 	file_t *f = vfs_open("/q/something/q", O_WRONLY|O_CREAT|O_TRUNC);
 	printk("f=%p (%d)\n", f, f);
+	vfs_write(f, "qwerty", 6);
 	vfs_close(f);
+	f = vfs_open("/q/something/q", O_RDONLY);
+	printk("f=%p (%d)\n", f, f);
+	char buf[11];
+	int count = vfs_read(f, buf, 10);
+	buf[count] = 0;
+	vfs_close(f);
+	printk("count=%d, buf=<%s>\n", count, buf);
+	vfs_unlink("/q/something/q");
+	vfs_rmdir("/q/something");
 	tree("/");
 #if 0
 	char str[10];

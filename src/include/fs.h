@@ -14,6 +14,10 @@
 
 #define PATH_MAX 255
 
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+
 typedef struct superblock {
 	struct fs *fs;
 	struct dentry *root_dentry;
@@ -58,9 +62,13 @@ typedef struct fs {
 	int (*mkdir)(dentry_t *d, const char *name);
 	int (*rmdir)(dentry_t *d);
 	int (*create)(dentry_t *d, const char *name);
+	int (*unlink)(dentry_t *d);
 	int (*open)(file_t *f, int flags);
 	int (*truncate)(file_t *f);
 	int (*close)(file_t *f);
+	int (*read)(file_t *f, u32 offset, char *buf, u32 size);
+	int (*write)(file_t *f, u32 offset, const char *buf, u32 size);
+	int (*lseek)(file_t *f, u32 offset, int whence);
 } fs_t;
 
 dentry_t *dentry_get(dentry_t *d);
@@ -76,11 +84,16 @@ int vfs_mount(char *fstype, char *path);
 int vfs_dgetdents(dentry_t *d, void *buf, u32 size, int start);
 int vfs_dmkdir(dentry_t *d, char *name);
 int vfs_drmdir(dentry_t *d);
+int vfs_dunlink(dentry_t *d);
 file_t *vfs_dopen(dentry_t *d, const char *name, int flags);
 int vfs_close(file_t *f);
 int vfs_getdents(const char *path, void *buf, u32 size, int start);
 int vfs_mkdir(const char *path);
 int vfs_rmdir(const char *path);
+int vfs_unlink(const char *path);
 file_t *vfs_open(const char *name, int flags);
+int vfs_read(file_t *f, char *buf, u32 size);
+int vfs_write(file_t *f, const char *buf, u32 size);
+int vfs_lseek(file_t *f, u32 offset, int whence);
 
 #endif

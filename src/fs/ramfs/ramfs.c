@@ -2,10 +2,14 @@
 #include <kernel.h>
 #include <list.h>
 
+#define ROUND_CHUNK(x)	(((x) + 4095) & ~4095)
+
 typedef struct dpriv {
 	dentry_t *dentry;
 	list_t children;
 	list_t header;
+	u32 alloc_size;
+	char *data;
 } dpriv_t;
 
 static dentry_t *make_node(dentry_t *parent, const char *name, u32 mode)
@@ -137,6 +141,68 @@ static int ramfs_create(dentry_t *d, const char *name)
 	return 0;
 }
 
+static int ramfs_read(file_t *f, u32 offset, char *buf, u32 size)
+{
+	if (offset >= f->dentry->size)
+		return 0;
+	if (offset + size > f->dentry->size)
+		size = f->dentry->size - offset;
+	memcpy(buf, ((dpriv_t *)f->dentry->priv)->data + offset, size);
+	return size;
+
+}
+
+static int ramfs_write(file_t *f, u32 offset, const char *buf, u32 size)
+{
+	dpriv_t *priv = f->dentry->priv;
+	if (offset + size > priv->alloc_size) {
+		/* allocate */
+		if (priv->data == NULL) {
+			u32 alloc_size = ROUND_CHUNK(offset + size);
+			priv->data = kmalloc(alloc_size);
+			if (priv->data == NULL)
+				return -ENOMEM;
+			priv->alloc_size = alloc_size;
+		} else {
+			u32 alloc_size = priv->alloc_size * 2;
+			if (alloc_size < offset + size)
+				alloc_size = ROUND_CHUNK(offset + size);
+			char *p = kmalloc(alloc_size);
+			if (p == NULL)
+				return -ENOMEM;
+			memcpy(p, priv->data, f->dentry->size);
+			kfree(priv->data);
+			priv->data = p;
+			priv->alloc_size = alloc_size;
+		}
+	}
+	if (f->dentry->size < offset + size)
+		f->dentry->size = offset + size;
+	memcpy(priv->data + offset, buf, size);
+	return size;
+}
+
+static int ramfs_truncate(file_t *f)
+{
+	dpriv_t *priv = f->dentry->priv;
+	f->dentry->size = f->offset;
+	priv->alloc_size = f->offset;
+	if (f->offset == 0) {
+		kfree(priv->data);
+		priv->data = NULL;
+	}
+	return 0;
+}
+
+static int ramfs_unlink(dentry_t *d)
+{
+	dpriv_t *priv = d->priv;
+	list_del(&priv->header);
+	kfree(priv->data);
+	dentry_put(d);
+	return 0;
+}
+
 static fs_t ramfs_fs = {
 	.name = "ramfs",
 	.mount = ramfs_mount,
@@ -145,6 +211,10 @@ static fs_t ramfs_fs = {
 	.mkdir = ramfs_mkdir,
 	.rmdir = ramfs_rmdir,
 	.create = ramfs_create,
+	.unlink = ramfs_unlink,
+	.read = ramfs_read,
+	.write = ramfs_write,
+	.truncate = ramfs_truncate,
 };
 
 int init_ramfs(void)
