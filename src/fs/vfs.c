@@ -415,7 +415,7 @@ int vfs_lseek(file_t *f, u32 offset, int whence)
 		if (offset > f->dentry->size)
 			return -EINVAL;
 		f->offset = offset;
-		return 0;
+		return offset;
 	}
 	return -EINVAL;
 }
