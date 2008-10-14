@@ -235,6 +235,50 @@ void tree(char *path)
 	dentry_put(d);
 }
 
+#if 0
+static void dump_mbi(multiboot_info_t *mbi)
+{
+	const char *flags[] = {
+		"memsize", "bootdev", "cmdline", "bootmods",
+		"syms-aout", "syms-elf", "memmap", "drives",
+		"config", "bootldr", "apm", "vbe"
+	};
+	int i;
+	printk("Flags = 0x%x\n    ", mbi->flags);
+	for (i = 0; i < sizeof(flags)/sizeof(flags[0]); i++)
+		if (mbi->flags & (1<<i))
+			printk("%s ", flags[i]);
+	printk("\n");
+	if (mbi->flags & 1) {
+		printk("Mem lower = %d KB\nMem upper = %d KB\n", mbi->mem_lower, mbi->mem_upper);
+	}
+	if (mbi->flags & 4) {
+		printk("Cmdline = <%s> %p\n", P2V(mbi->cmdline), P2V(mbi->cmdline));
+	}
+	if (mbi->flags & 8) {
+		printk("Bootmods = %d\n", mbi->mods_count);
+		module_t* m = (module_t *)P2V(mbi->mods_addr);
+		for (i = 0; i < mbi->mods_count; i++, m++)
+			printk(" <%s> %p %p-%p\n", P2V(m->string), P2V(m->string), m->mod_start, m->mod_end);
+	}
+	if (mbi->flags & 64) {
+		unsigned long next = mbi->mmap_addr;
+		unsigned long size = mbi->mmap_length;
+		printk("Memory map:\n");
+		while (next < mbi->mmap_addr + size) {
+			memory_map_t *mm = (memory_map_t *)P2V(next);
+			next += mm->size + 4;
+			printk(" start=%p, len=%d, type=%d\n", mm->base_addr_low, mm->length_low, mm->type);
+		}
+
+	}
+	if (mbi->flags & 512) {
+		unsigned long name = *(unsigned long *)((unsigned long)mbi + 64);
+		printk("Bootldr name = <%s> %p\n", P2V(name), P2V(name));
+	}
+}
+#endif
+
 /* This is the C entry point of the kernel. It runs with interrupts disabled */
 void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 {
@@ -249,6 +293,10 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 		printk("No meminfo passed by bootloader.\n");
 		while (1);
 	}
+#if 0
+	dump_mbi(mbi);
+	while (1);
+#endif
 	/* mbi->mem_upper is the amount of memory (in KB) above 1MB */
 	printk("Found %lu MB of memory.\n", mbi->mem_upper/1024 + 1);
 	init_gdt();
