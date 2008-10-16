@@ -50,7 +50,7 @@ void console_putc(char c)
 		cursor = (cursor / COLUMNS) * COLUMNS;
 		break;
 	case '\t':
-		tmp = ((cursor + 7) / 8) * 8 - cursor;
+		tmp = ((cursor + 8) / 8) * 8 - cursor;
 		cursor += tmp;
 		memset16(&screen[cursor * 2], (color << 8) + ' ', tmp);
 		break;

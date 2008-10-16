@@ -204,7 +204,7 @@ void tree(char *path)
 	dentry_t *d = lookup_path_dir(path);
 	if (IS_ERR(d))
 		return;
-	printk("D %s\n", path);
+	printk("D %7d %s\n", 0, path);
 	int count, start = 0;
 	while (1) {
 		count = vfs_dgetdents(d, buf, 50, start);
@@ -226,7 +226,7 @@ void tree(char *path)
 				tree(s);
 				kfree(s);
 			} else {
-				printk("F %d %s%s%s\n", dp->size, path, path[strlen(path)-1]=='/'?"":"/", dp->name);
+				printk("F %7d %s%s%s\n", dp->size, path, path[strlen(path)-1]=='/'?"":"/", dp->name);
 			}
 			dp = (user_dentry_t *)(buf + dp->reclen);
 		}
@@ -279,6 +279,29 @@ static void dump_mbi(multiboot_info_t *mbi)
 }
 #endif
 
+unsigned long get_modules_end(multiboot_info_t *mbi)
+{
+	if (!(mbi->flags & 8))
+		return 0;
+	if (mbi->mods_count == 0)
+		return 0;
+	module_t* m = (module_t *)P2V(mbi->mods_addr);
+	return ROUND_PAGE_UP(m->mod_end);
+}
+
+static void extract_bootimg(multiboot_info_t *mbi)
+{
+	int extract_tar(u32 start, u32 size);
+	if (!(mbi->flags & 8))
+		printk("No bootimg found.\n");
+	if (mbi->mods_count == 0)
+		printk("No bootimg found.\n");
+	module_t* m = (module_t *)P2V(mbi->mods_addr);
+	int ret = extract_tar(P2V(m->mod_start), m->mod_end - m->mod_start);
+	if (ret < 0)
+		printk("Error extracting bootimg: %d\n", ret);
+}
+
 /* This is the C entry point of the kernel. It runs with interrupts disabled */
 void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 {
@@ -301,7 +324,9 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	printk("Found %lu MB of memory.\n", mbi->mem_upper/1024 + 1);
 	init_gdt();
 	init_idt();
-	base = ROUND_PAGE_UP(V2P((unsigned long)_end));
+	base = get_modules_end(mbi);
+	if (!base)
+		base = ROUND_PAGE_UP(V2P((unsigned long)_end));
 	size = ROUND_PAGE_DOWN(mbi->mem_upper*1024 - base);
 	init_pmm(base, size);
 	map_memory((mbi->mem_upper+1024) * 1024);	/* map all memory */
@@ -322,6 +347,9 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	int init_ramfs(void);
 	init_ramfs();
 	vfs_mount("ramfs", "/");
+	extract_bootimg(mbi);
+	tree("/");
+#if 0
 	tree("/");
 	int ret;
 	ret=vfs_mkdir("/q"); if (ret<0) printk("1 ret=%d\n", ret);
@@ -348,6 +376,7 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	vfs_unlink("/q/something/q");
 	vfs_rmdir("/q/something");
 	tree("/");
+#endif
 #if 0
 	char str[10];
 	strcpy(str, "qwe"); printk("%s\n", dirname(str));

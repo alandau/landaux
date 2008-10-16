@@ -63,12 +63,14 @@ static int ramfs_mount(superblock_t *sb)
 	list_init(&dpriv->header);
 	d->priv = dpriv;
 
+#if 0
 	/* populate ramfs */
 	dentry_t *e;
 	make_node(d, "a", DIR_FILE);
 	make_node(d, "b", DIR_FILE);
 	e = make_node(d, "c", DIR_DIR);
 	make_node(e, "1", DIR_FILE);
+#endif
 
 	return 0;
 fail_priv:

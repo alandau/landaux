@@ -16,4 +16,6 @@ typedef unsigned long long u64;
 
 typedef unsigned long size_t;
 
+#define ROUND_UP(x,y)	(((u32)(x) + (y) - 1) & ~ ((y) - 1))
+
 #endif

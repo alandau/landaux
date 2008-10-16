@@ -10,7 +10,7 @@ int strcmp(const char *dest, const char *src)
 		dest++;
 		src++;
 	}
-	return 0;
+	return *dest - *src;
 }
 
 char *strcat(char *dest, const char *src)
@@ -71,4 +71,16 @@ char *dirname(char *s)
 //	while (p != s && *p == '/')
 //		*p-- = '\0';
 	return s;
+}
+
+int memcmp(const void *dest_, const void *src_, u32 count)
+{
+	const char *src = src_;
+	const char *dest = dest_;
+	while (count--) {
+		int c = *dest - *src;
+		if (c)
+			return c;
+	}
+	return 0;
 }
