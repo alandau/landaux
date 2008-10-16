@@ -292,10 +292,14 @@ unsigned long get_modules_end(multiboot_info_t *mbi)
 static void extract_bootimg(multiboot_info_t *mbi)
 {
 	int extract_tar(u32 start, u32 size);
-	if (!(mbi->flags & 8))
+	if (!(mbi->flags & 8)) {
 		printk("No bootimg found.\n");
-	if (mbi->mods_count == 0)
+		return;
+	}
+	if (mbi->mods_count == 0) {
 		printk("No bootimg found.\n");
+		return;
+	}
 	module_t* m = (module_t *)P2V(mbi->mods_addr);
 	int ret = extract_tar(P2V(m->mod_start), m->mod_end - m->mod_start);
 	if (ret < 0)
