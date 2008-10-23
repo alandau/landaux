@@ -127,8 +127,10 @@ int extract_tar(u32 tar_start, u32 tar_size)
 		case REGTYPE:
 		case AREGTYPE:
 			f = vfs_open(name, O_WRONLY|O_CREAT|O_TRUNC);
-			if (IS_ERR(f))
+			if (IS_ERR(f)) {
 				printk("%s: Can't create file (%d)\n", name, PTR_ERR(f));
+				break;
+			}
 			ret = vfs_write(f, p + 512, size);
 			if (ret != size)
 				printk("%s: File not fully extracted: %d instead of %d\n", name, ret, size);
@@ -136,7 +138,7 @@ int extract_tar(u32 tar_start, u32 tar_size)
 			break;
 		case DIRTYPE:
 			ret = vfs_mkdir(name);
-			if (ret < 0)
+			if (ret < 0 && ret != -EEXIST)
 				printk("%s: Can't create directory (%d)\n", name, ret);
 			break;
 		default:

@@ -151,7 +151,7 @@ static dentry_t *lookup_path_common(const char *path, int last_flags, char **las
 			(last_flags & LAST_MUST_NOT_EXIST)) {
 				kfree(name);
 				dentry_put(d);
-				return ERR_PTR(-ENOENT);
+				return ERR_PTR(-EEXIST);
 		}
 		if (DIR_TYPE(d->mode) != DIR_DIR) {
 			if (type == COMP_NORM || type == COMP_LAST_SLASH || (last_flags & LAST_MUST_BE_DIR)) {

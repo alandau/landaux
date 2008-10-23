@@ -279,14 +279,14 @@ static void dump_mbi(multiboot_info_t *mbi)
 }
 #endif
 
-unsigned long get_modules_end(multiboot_info_t *mbi)
+static unsigned long get_modules_end(multiboot_info_t *mbi)
 {
 	if (!(mbi->flags & 8))
 		return 0;
 	if (mbi->mods_count == 0)
 		return 0;
 	module_t* m = (module_t *)P2V(mbi->mods_addr);
-	return ROUND_PAGE_UP(m->mod_end);
+	return ROUND_PAGE_UP(m[mbi->mods_count-1].mod_end);
 }
 
 static void extract_bootimg(multiboot_info_t *mbi)
@@ -301,9 +301,12 @@ static void extract_bootimg(multiboot_info_t *mbi)
 		return;
 	}
 	module_t* m = (module_t *)P2V(mbi->mods_addr);
-	int ret = extract_tar(P2V(m->mod_start), m->mod_end - m->mod_start);
-	if (ret < 0)
-		printk("Error extracting bootimg: %d\n", ret);
+	int i;
+	for (i = 0; i < mbi->mods_count; i++, m++) {
+		int ret = extract_tar(P2V(m->mod_start), m->mod_end - m->mod_start);
+		if (ret < 0)
+			printk("Error extracting bootimg '%s': %d\n", P2V(m->string), ret);
+	}
 }
 
 /* This is the C entry point of the kernel. It runs with interrupts disabled */
