@@ -20,24 +20,24 @@ void scheduler_tick(void)
 
 extern tss_t tss;
 
-#define context_switch(prev, next) do {							\
-	tss.esp0 = (u32)next + sizeof(task_stack_t);				\
-	__asm__ __volatile__ (										\
-		"pusha\n\t"												\
-		"movl %%esp, %0\n\t"									\
-		"movl %2, %%esp\n\t"									\
-		"movl $1f, %1\n\t"										\
-		"movl %4, %%cr3\n\t"									\
-		"pushfl\n\t"											\
-		"pushl %%cs\n\t"										\
-		"pushl %3\n\t"											\
-		"iret\n\t"												\
-		"1:\n\t"												\
-		"popa\n\t"												\
-		: "=m"(prev->regs.esp), "=m"(prev->regs.eip)			\
-		: "m"(next->regs.esp), "m"(next->regs.eip), "a"(get_task_cr3(&next->mm))				\
-		: "%ebx", "%ecx", "%edx"								\
-		);														\
+#define context_switch(prev, next, flags) do {		\
+	tss.esp0 = (u32)next + sizeof(task_stack_t);	\
+	__asm__ __volatile__ (				\
+		"pusha\n\t"				\
+		"movl %%esp, %0\n\t"			\
+		"movl %2, %%esp\n\t"			\
+		"movl $1f, %1\n\t"			\
+		"movl %4, %%cr3\n\t"			\
+		"pushl %5\n\t"				\
+		"pushl %%cs\n\t"			\
+		"pushl %3\n\t"				\
+		"iret\n\t"				\
+		"1:\n\t"				\
+		"popa\n\t"				\
+		: "=m"(prev->regs.esp), "=m"(prev->regs.eip)	\
+		: "m"(next->regs.esp), "m"(next->regs.eip), "a"(get_task_cr3(&next->mm)), "g"(flags)	\
+		: "%ebx", "%ecx", "%edx"		\
+		);					\
 	} while (0)
 
 void schedule(void)
@@ -45,12 +45,14 @@ void schedule(void)
 	u32 flags = save_flags_irq();
 	task_t *prev = current;
 	task_t *next = list_get(prev->running.next, task_t, running);
-	if (next == idle)
-	{
+	if (next == idle) {
 		task_t *next_next = list_get(next->running.next, task_t, running);
-		if (next_next != idle) next = next_next;
+		if (next_next != idle)
+			next = next_next;
 	}
 	clear_need_resched();
-	if (next != prev) context_switch(prev, next);
-	restore_flags(flags);
+	if (next != prev)
+		context_switch(prev, next, flags);	/* context_switch restores flags */
+	else
+		restore_flags(flags);
 }

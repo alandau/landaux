@@ -33,6 +33,7 @@ typedef union {
 	task_t task;
 	u32 stack[1024];
 } task_stack_t;
+typedef int BUG_task_stack_t_is_not_page_sized[sizeof(task_stack_t) == PAGE_SIZE ? 1 : -1];
 
 #define current ((task_t *)(get_esp() & ~(sizeof(task_stack_t)-1)))
 

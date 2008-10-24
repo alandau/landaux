@@ -56,3 +56,17 @@ void map_page(u32 frame, u32 addr)
 	pte->flags = PTE_PRESENT | PTE_WRITE;
 	__asm__ __volatile__ ("invlpg (%0)" : : "r"(addr << PAGE_SHIFT) : "memory");
 }
+
+void *alloc_page(unsigned long flags)
+{
+	u32 frame = alloc_phys_page();
+	if (!frame)
+		return NULL;
+	/* page is already mapped, since all memory is mapped */
+	return (void *)P2V(frame << PAGE_SHIFT);
+}
+
+u32 get_task_cr3(mm_t *mm)
+{
+	return V2P((u32)mm->page_dir);
+}

@@ -13,12 +13,14 @@
 #define PHYS_MEM				0xF0000000
 #define MAX_MEM_SIZE			(256*1024*1024)	/* used to calculate bitmap size */
 
+#if 0
 static u32 memsize;		/* in bytes */
 static u32 memused;		/* in bytes */
 static u32 bitmap[MAX_MEM_SIZE / PAGE_SIZE / 32];
 static u32 bitmap_size;				/* number of unsigned long's in mem_bitmap */
 
 pte_t first_mb_table[PAGE_SIZE/sizeof(pte_t)] __attribute__ ((aligned (PAGE_SIZE)));
+#endif
 
 #if 0
 /* in bytes */
@@ -57,6 +59,7 @@ u32 alloc_phys_page(void)
 	return i*32 + bit_offs;		/* 32 == bits in long */
 }
 #endif
+#if 0
 static int have_enough_zeros(u32 *p, u32 start_bit, u32 max_bits, int zeros)
 {
 	for (; zeros && max_bits; max_bits--, zeros--)
@@ -119,6 +122,7 @@ static u32 alloc_zeroed_phys_page(void)
 	memset((void *)(PHYS_MEM + frame*PAGE_SIZE), 0, PAGE_SIZE);
 	return frame;
 }
+#endif
 #if 0
 /* frees frame by number */
 void free_phys_page(u32 frame)
@@ -134,6 +138,7 @@ void free_phys_page(u32 frame)
 	memused -= PAGE_SIZE;
 }
 #endif
+#if 0
 /* allocates a pagetable page to be pointed by first
    returns the allocated frame number */
 static u32 alloc_page_table_page(pte_t *first)
@@ -145,10 +150,10 @@ static u32 alloc_page_table_page(pte_t *first)
 	first->frame = table;
 	return table;
 }
-
+#endif
+#if 0
 void init_mm(void)
 {
-#if 0
 	u32 i, kernel_pages;
 	memsize = __get_memsize();
 	memused = 0;
@@ -207,9 +212,8 @@ void init_mm(void)
 	second->flags &= ~PTE_PRESENT;
 
 	init_task_mm(&current->mm);
-#endif
 }
-#if 0
+
 u32 get_mem_size()
 {
 	return memsize;
@@ -226,6 +230,7 @@ u32 get_free_mem()
 }
 #endif
 
+#if 0
 // given the pte at (first1, second1), find the next pte and put it's address at (*first2, *second2)
 // *second2 will be NULL if *first2 points to a not-yet-allocated page
 // returns 0 if *first2 went out of page_dir, 1 otherwise
@@ -494,15 +499,11 @@ void free_mm(mm_t *mm)
 	}
 //	free_phys_page(virt_to_phys(page_dir));
 }
+#endif
 
-u32 get_task_cr3(mm_t *mm)
-{
-	return virt_to_phys(mm->page_dir);
-}
-
+#if 0
 void init_task_mm(mm_t *mm)
 {
-#if 0
 	mm->page_dir = page_dir;
-#endif
 }
+#endif

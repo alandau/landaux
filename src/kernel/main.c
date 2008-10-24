@@ -14,39 +14,6 @@
 #define GDT_MAX_ENTRIES 3
 #define IDT_MAX_ENTRIES (32+16+1)
 
-void f(void **a, int count)
-{
-	int i;
-	for (i=0; i<1000*count; i++)
-	{
-		a[i] = alloc_page(MAP_READWRITE);
-		if (!a[i]) {printk("i=%d\n", i); BUG();}
-	}
-}
-
-void g(void **a, int count)
-{
-	int i;
-	for (i=0; i<1000*count; i++)
-	{
-		free_page(a[i]);
-	}
-}
-
-void test_mm(void)
-{
-	void **a;
-	u32 f1, f2, f3;
-	f1 = get_free_mem();
-	a = alloc_pages(3, MAP_READWRITE);
-//	f(a, 3);
-	f2 = get_free_mem();
-//	g(a, 3);
-	free_pages(a, 3);
-	f3 = get_free_mem();
-	printk("f1=%u\nf2=%u\nf3=%u\n", f1, f2, f3);
-}
-
 int sys_ni_syscall(void)
 {
 	return -1;
@@ -341,7 +308,7 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	init_pic();
 	init_pit();
 //	init_mm();
-//	init_idle();
+	init_idle();
 //	init_tss();
 	void do_keyboard(void *);
 	void do_timer(void *);
@@ -356,48 +323,12 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	vfs_mount("ramfs", "/");
 	extract_bootimg(mbi);
 	tree("/");
-#if 0
-	tree("/");
-	int ret;
-	ret=vfs_mkdir("/q"); if (ret<0) printk("1 ret=%d\n", ret);
-	ret=vfs_mkdir("/q/w"); if (ret<0) printk("2 ret=%d\n", ret);
-	ret=vfs_mkdir("/q/r/y"); if (ret<0) printk("3! ret=%d\n", ret);
-	ret=vfs_mkdir("//q///w//4/"); if (ret<0) printk("4 ret=%d\n", ret);
-	ret=vfs_mkdir("/c/2"); if (ret<0) printk("5 ret=%d\n", ret);
-	ret=vfs_mkdir("/c/1/no"); if (ret<0) printk("6! ret=%d\n", ret);
-	tree("/");
-	printk("----------------------\n");
-	printk("vfs_mount=%d\n", vfs_mount("ramfs", "/q"));
-	vfs_mkdir("/q/something/");
-	file_t *f = vfs_open("/q/something/q", O_WRONLY|O_CREAT|O_TRUNC);
-	printk("f=%p (%d)\n", f, f);
-	vfs_write(f, "qwerty", 6);
-	vfs_close(f);
-	f = vfs_open("/q/something/q", O_RDONLY);
-	printk("f=%p (%d)\n", f, f);
-	char buf[11];
-	int count = vfs_read(f, buf, 10);
-	buf[count] = 0;
-	vfs_close(f);
-	printk("count=%d, buf=<%s>\n", count, buf);
-	vfs_unlink("/q/something/q");
-	vfs_rmdir("/q/something");
-	tree("/");
-#endif
-#if 0
-	char str[10];
-	strcpy(str, "qwe"); printk("%s\n", dirname(str));
-	strcpy(str, "qwe/"); printk("%s\n", dirname(str));
-	strcpy(str, "qwe//"); printk("%s\n", dirname(str));
-	strcpy(str, "/qwe"); printk("%s\n", dirname(str));
-	strcpy(str, "//q/we"); printk("%s\n", dirname(str));
-	strcpy(str, "q/w/e/"); printk("%s\n", dirname(str));
-	strcpy(str, "q/w/e"); printk("%s\n", dirname(str));
-#endif
-	return;
-	
 	kernel_thread(kthread_func, "1");
 	kernel_thread(kthread_func, "2");
+	
+	schedule();
+	return;
+	
 #if 0
 	move_to_user_mode();
 	if (user_fork() == 0)
