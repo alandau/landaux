@@ -11,7 +11,7 @@
 #include <string.h>
 #include <fs.h>
 
-#define GDT_MAX_ENTRIES 3
+#define GDT_MAX_ENTRIES 6
 #define IDT_MAX_ENTRIES (32+16+1)
 
 int sys_ni_syscall(void)
@@ -26,13 +26,22 @@ static inline int user_fork(void)
 	return ret;
 }
 
+static void run_init(void *data)
+{
+	printk("Running /prog...\n");
+	kernel_exec("/prog");
+}
+
 static void kthread_func(void *data)
 {
 	while (1) {
+#if 0
 		int x=0;
 		while (x++ < 100)
+#endif
 			printk("%d", current->pid);
-		schedule();
+		if (current->timeslice == 0)
+			schedule();
 	}
 }
 
@@ -86,12 +95,42 @@ static void setup_gdt_entry(unsigned int selector, int type, int regular, int dp
 #endif
 }
 
+static void setup_tss_gdt_entry(unsigned int selector, u32 base, u32 size)
+{
+	enum {TYPE_TSS = 0x9};
+	unsigned int entry = selector / 8;
+	BUG_ON(entry >= GDT_MAX_ENTRIES);
+	struct gdt_entry *e = &gdt[entry];
+	memset(e, 0, sizeof(struct gdt_entry));
+	e->type = TYPE_TSS;
+	e->present = 1;
+	e->granularity = 0;
+	e->base0_15 = base & 0xffff;
+	e->base16_23 = (base >> 16) & 0xff;
+	e->base24_31 = base >> 24;
+	size--;		/* limit == size-1 */
+	e->limit0_15 = size & 0xffff;
+	e->limit16_19 = (size >> 16) & 0x0f;
+#if 0
+	/* zeroed by memset above */
+	e->avail = 0;
+	e->reserved = 0;
+	e->regular = 0;
+	e->dpl = 0;
+	e->opsize = 0;
+#endif
+}
+
 static void init_gdt(void)
 {
 	/* entry 0 is null */
 	enum {TYPE_CODE = 0xA, TYPE_DATA = 0x2};
+	extern tss_t tss;
 	setup_gdt_entry(KERNEL_CS, TYPE_CODE, 1, 0);
 	setup_gdt_entry(KERNEL_DS, TYPE_DATA, 1, 0);
+	setup_gdt_entry(USER_CS, TYPE_CODE, 1, 3);
+	setup_gdt_entry(USER_DS, TYPE_DATA, 1, 3);
+	setup_tss_gdt_entry(TSS_SELECTOR, (u32)&tss, sizeof(tss));
 	gdtr.limit = sizeof(gdt) - 1;
 	gdtr.addr = (unsigned long)&gdt;
 	__asm__ __volatile__ (
@@ -303,13 +342,13 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 		base = ROUND_PAGE_UP(V2P((unsigned long)_end));
 	size = ROUND_PAGE_DOWN(mbi->mem_upper*1024 - base);
 	init_pmm(base, size);
+	init_idle();
 	map_memory((mbi->mem_upper+1024) * 1024);	/* map all memory */
 	init_heap();
 	init_pic();
 	init_pit();
-//	init_mm();
-	init_idle();
-//	init_tss();
+	init_mm((mbi->mem_upper+1024) * 1024);
+	init_tss();
 	void do_keyboard(void *);
 	void do_timer(void *);
 	register_irq(0, do_timer, NULL);
@@ -323,11 +362,13 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	vfs_mount("ramfs", "/");
 	extract_bootimg(mbi);
 	tree("/");
+#if 0
 	kernel_thread(kthread_func, "1");
 	kernel_thread(kthread_func, "2");
-	
+#endif
+	kernel_thread(run_init, NULL);
+	kernel_thread(kthread_func, NULL);
 	schedule();
-	return;
 	
 #if 0
 	move_to_user_mode();

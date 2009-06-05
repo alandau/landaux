@@ -4,12 +4,13 @@
 #include <kernel.h>
 #include <string.h>
 #include <sched.h>
+#include <fs.h>
 
 task_stack_t idle_task_stack __attribute__ ((aligned (PAGE_SIZE)));
+tss_t tss __attribute__ ((aligned (PAGE_SIZE)));
 task_t *idle;
 static int next_free_pid;
 
-tss_t tss;
 
 void init_idle(void)
 {
@@ -17,6 +18,7 @@ void init_idle(void)
 	memset(idle, 0, sizeof(task_t));
 	extern pte_t page_dir[];
 	idle->mm.page_dir = page_dir;
+	list_init(&idle->mm.vm_areas);
 	idle->pid = 0;
 	idle->state = TASK_RUNNING;
 	idle->timeslice = 1;
@@ -28,55 +30,37 @@ void init_idle(void)
 
 void init_tss(void)
 {
-#if 0
 	memset(&tss, 0, sizeof(tss));
-	tss.ss0 = tss.ss = KERNEL_DS;
-	tss.esp0 = (u32)(real_idle_stack + 1);
-	tss.ldt = LDT_SELECTOR;
-	tss.cr3 = get_task_cr3(&current->mm);
-	tss.io_map_base = sizeof(tss_t);
-
-	extern char tss_des[];
-	u32 tss_addr = (u32)&tss;//virt_to_phys(&tss);
-	printk("%0x", tss_addr);
-//	halt();
-	*(u16 *)(tss_des+2) = tss_addr & 0xFFFF;
-	*(u8 *)(tss_des+4) = (tss_addr >> 16) & 0xFF;
-	*(u8 *)(tss_des+7) = tss_addr >> 24;
-	extern void setup_idtr(void);
-	setup_idtr();
-	printk("haha\n");
-//	asm ("int $0x0");
-//	*(char*)0 = 1;
-
-//	halt();
+	tss.ss0 = KERNEL_DS;
+	tss.esp0 = (u32)(&idle_task_stack + 1);
 	__asm__ __volatile__ ("ltrw %%ax" : /* no output */ : "a" (TSS_SELECTOR));
-//	halt();
-#endif
 }
 
 int sys_fork(void)
 {
-#if 0
-	extern char ret_from_sys_call[];
+#if 1
+	extern char ret_from_interrupt[];
 
-	task_t *p = alloc_pages(sizeof(task_stack_t) / PAGE_SIZE, MAP_READWRITE);
+	task_t *p = alloc_page(MAP_READWRITE);
 	*p = *current;
 	p->pid = next_free_pid++;
 	if (p->pid < 0) BUG();		// overflow
 	p->state = TASK_RUNNING;
-	list_init(&p->tasks);
-	list_init(&p->running);
 	list_add(&current->tasks, &p->tasks);
 	list_add(&current->running, &p->running);
-	if (!clone_mm(&p->mm)) return -1;
+	int ret = 0;
+	if ((ret = clone_mm(p)) < 0)
+		goto out;
 	regs_t *parent_regs = (regs_t *)((task_stack_t *)current + 1) - 1;
 	regs_t *child_regs = (regs_t *)((task_stack_t *)p + 1) - 1;
 	*child_regs = *parent_regs;
 	child_regs->eax = 0;	// son returns 0
-	p->regs.eip = (u32)ret_from_sys_call;
+	p->regs.eip = (u32)ret_from_interrupt;
 	p->regs.esp = (u32)child_regs;
 	return p->pid;
+out:
+	free_page(p);
+	return ret;
 #else
 	return 0;
 #endif
@@ -89,8 +73,6 @@ int kernel_thread(void (*fn)(void *data), void *data)
 	p->pid = next_free_pid++;
 	if (p->pid < 0) BUG();		// overflow
 	p->state = TASK_RUNNING;
-	list_init(&p->tasks);
-	list_init(&p->running);
 	list_add(&idle->tasks, &p->tasks);
 	list_add(&idle->running, &p->running);
 	p->timeslice = 10;
@@ -101,7 +83,71 @@ int kernel_thread(void (*fn)(void *data), void *data)
 	return p->pid;
 }
 
-int sys_exec(void)
+int sys_exit(void)
+{
+#if 0
+	free_mm(&current->mm);
+	list_del(&current->tasks);
+	list_del(&current->running);
+	free_pages(current, sizeof(task_stack_t)/PAGE_SIZE);
+#endif
+	return 0;
+}
+
+#define CODE_START	0x100000	/* 1MB */
+#define STACK_START	KERNEL_VIRT_ADDR
+#define STACK_SIZE	PAGE_SIZE
+
+int do_exec(const char *path)
+{
+	int ret;
+	printk("do_exec: path=<%s>\n", path);
+	file_t *f = vfs_open(path, O_RDONLY);
+	if (IS_ERR(f)) {
+		printk("do_exec: Can't open file '%s' (%d)\n", path, PTR_ERR(f));
+		return PTR_ERR(f);
+	}
+	u32 frame = alloc_phys_page();
+	void *p = (void *)CODE_START;
+	map_user_page(frame, (u32)p, 0 /* should be PTE_EXEC, but x86 sucks */);
+	ret = vfs_read(f, p, PAGE_SIZE);
+	if (ret < 0) {
+		printk("do_exec: Can't read from file '%s' (%d)\n", path, ret);
+		vfs_close(f);
+		goto out;
+	}
+	vfs_close(f);
+
+	/* setup stack */
+	u32 stack = alloc_phys_page();
+	p = (void *)(STACK_START - STACK_SIZE);
+	map_user_page(stack, (u32)p, PTE_WRITE);
+
+	/* setup mm areas */
+	ret = mm_add_area(CODE_START, PAGE_SIZE, VM_AREA_READ|VM_AREA_EXEC);
+	if (ret < 0)
+		goto out2;
+	ret = mm_add_area(STACK_START - STACK_SIZE, STACK_SIZE, VM_AREA_READ|VM_AREA_WRITE);
+	if (ret < 0)
+		goto out2;
+
+	regs_t *r = (regs_t *)((task_stack_t *)current + 1) - 1;
+	r->eax = r->ebx = r->ecx = r->edx = r->esi = r->edi = r->ebp = 0;
+	r->cs = USER_CS;
+	r->ds = r->es = r->fs = r->gs = r->ss = USER_DS;
+	r->eip = CODE_START;
+	r->esp = STACK_START;
+	r->eflags = (1<<9) | (1<<1);	// 9 is IF, 1 is always on
+	printk("do_exec: success\n");
+	return 0;
+out2:
+	free_phys_page(stack);
+out:
+	free_phys_page(frame);
+	return ret;
+}
+
+int sys_exec(const char *path)
 {
 #if 0
 #define CODE_START (1024*1024)	// 1MB
@@ -130,16 +176,17 @@ int sys_exec(void)
 	regs->eip = CODE_START;
 	regs->esp = STACK_START;
 #endif
-	return 0;
+	return do_exec(path);
 }
 
-int sys_exit(void)
+int kernel_exec(const char *path)
 {
-#if 0
-	free_mm(&current->mm);
-	list_del(&current->tasks);
-	list_del(&current->running);
-	free_pages(current, sizeof(task_stack_t)/PAGE_SIZE);
-#endif
-	return 0;
+	int ret;
+	__asm__ __volatile__ (
+		"orl $0xfff, %%esp\n\t"
+		"inc %%esp\n\t"
+		"subl $8, %%esp\n\t"
+		"int $0x30"
+		: "=a" (ret) : "0" (2), "d" (path));
+	return ret;
 }

@@ -3,11 +3,10 @@
 
 #define KERNEL_CS	0x0008
 #define KERNEL_DS	0x0010
-#define LDT_SELECTOR	0x0018
-#define TSS_SELECTOR	0x0020
+#define TSS_SELECTOR	0x0018
 
-#define USER_CS		0x000F
-#define USER_DS		0x0017
+#define USER_CS		0x0023
+#define USER_DS		0x002B
 
 #ifndef ASM
 

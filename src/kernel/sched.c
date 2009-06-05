@@ -51,8 +51,9 @@ void schedule(void)
 			next = next_next;
 	}
 	clear_need_resched();
-	if (next != prev)
+	if (next != prev){
 		context_switch(prev, next, flags);	/* context_switch restores flags */
+	}
 	else
 		restore_flags(flags);
 }

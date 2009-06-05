@@ -10,8 +10,6 @@ typedef struct node {
 	u32 size;
 } node_t;
 
-void map_page(u32 frame, u32 addr);
-
 void init_heap(void)
 {
 	u32 frame;
@@ -19,7 +17,7 @@ void init_heap(void)
 	heap_top = (void *)HEAP_START;
 	frame = alloc_phys_page();
 	BUG_ON(frame == 0);
-	map_page(frame, (u32)heap_top);
+	map_kernel_page(frame, (u32)heap_top);
 	heap_top += PAGE_SIZE;
 	n = (node_t *)HEAP_START;
 	n->size = PAGE_SIZE - sizeof(node_t);
@@ -39,7 +37,7 @@ void *kmalloc(u32 size)
 				print_stack(NULL);
 				return NULL;
 			}
-			map_page(frame, (u32)heap_top);
+			map_kernel_page(frame, (u32)heap_top);
 			heap_top += PAGE_SIZE;
 			if (last_free_node) {
 				last_free_node->size += PAGE_SIZE;

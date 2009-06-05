@@ -1,6 +1,8 @@
 #include <arch.h>
+#include <errno.h>
+#include <sched.h>
 
-/* Every emtry is 16 bytes long */
+/* Every entry is 16 bytes long */
 
 #define jmp32(x)	.byte 0xe9; .long ((x) - . - 4);
 
@@ -33,6 +35,8 @@
 /* D = default */
 #define EXC_ED(x)	EXC_E(x, do_unknown_exception)
 
+#define SYSCALL(x)	EXC(x, system_call)
+
 .align 4
 .global irq_entry_points_start
 irq_entry_points_start:
@@ -51,7 +55,7 @@ IRQ(0x04)	IRQ(0x05)	IRQ(0x06)	IRQ(0x07)
 IRQ(0x08)	IRQ(0x09)	IRQ(0x0a)	IRQ(0x0b)
 IRQ(0x0c)	IRQ(0x0d)	IRQ(0x0e)	IRQ(0x0f)
 /* System call */
-IRQ(0x30)
+SYSCALL(0x30)
 .global irq_entry_points_end
 irq_entry_points_end:
 
@@ -73,6 +77,12 @@ movw %dx, %es
 movw %dx, %fs
 movw %dx, %gs
 call *%eax
+.global ret_from_interrupt
+ret_from_interrupt:
+bt $FLAG_NEED_RESCHED, global_flags
+jnc 1f
+call schedule
+1:
 popl %edx
 popl %ecx
 popl %ebx
@@ -86,3 +96,27 @@ popl %gs
 popl %eax
 addl $8, %esp	/* Pop intnum and error_code */
 iret
+
+
+#define ENTRY(x) .extern x; .long x
+
+.align 4
+
+sys_call_table:
+ENTRY(printk)
+ENTRY(sys_fork)
+ENTRY(sys_exec)
+ENTRY(sys_exit)
+
+NUM_SYSCALLS = (. - sys_call_table) / 4
+
+.global system_call
+system_call:
+	movl 44(%esp), %eax	/* syscall number */
+	cmpl $NUM_SYSCALLS, %eax
+	jb 1f
+	movl $-ENOSYS, %eax
+	ret
+1:
+	jmp *sys_call_table(, %eax, 4)
+	ret

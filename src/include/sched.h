@@ -1,15 +1,17 @@
 #ifndef SCHED_H
 #define SCHED_H
 
+#define FLAG_NEED_RESCHED		0
+#define FLAG_IN_SYSCALL			1
+
+#ifndef ASM
+
 #include <stddef.h>
 #include <kernel.h>
 
 extern volatile u32 global_flags;
 
-#define FLAG_NEED_RESCHED		0
-#define FLAG_IN_SYSCALL			1
-
-#define set_need_resched()		set_global_flag(FLAG_NEED_RESCHED)
+#define set_need_resched()	set_global_flag(FLAG_NEED_RESCHED)
 #define clear_need_resched()	clear_global_flag(FLAG_NEED_RESCHED)
 
 static inline void set_global_flag(int flag)
@@ -25,5 +27,7 @@ static inline void clear_global_flag(int flag)
 }
 
 void schedule(void);
+
+#endif
 
 #endif

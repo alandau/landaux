@@ -507,3 +507,77 @@ void init_task_mm(mm_t *mm)
 	mm->page_dir = page_dir;
 }
 #endif
+
+page_t *pages;
+
+void init_mm(u32 size)
+{
+	int i;
+	size >>= PAGE_SHIFT;
+	pages = kmalloc(size * sizeof(page_t));
+	for (i = 0; i < size; i++)
+		pages[i].count = -1;
+}
+
+int clone_mm(task_t *p)
+{
+	mm_t *mm = &p->mm;
+	
+	/* Copy page tables */
+	pte_t *old_pg = current->mm.page_dir, *new_pg = alloc_page(MAP_READWRITE);
+	if (!new_pg)
+		goto out;
+	memcpy(new_pg, old_pg, PAGE_SIZE);
+	mm->page_dir = new_pg;
+	int i, j;
+	for (i=0; i<KERNEL_VIRT_ADDR/(4*1024*1024); i++)
+	{
+		if (!(old_pg[i].flags & PTE_PRESENT))
+			continue;
+		pte_t *old_second = (pte_t *)P2V(old_pg[i].frame<<PAGE_SHIFT);
+		pte_t *new_second = alloc_page(MAP_READWRITE);
+		BUG_ON(!new_second);
+		new_pg[i].frame = V2P((u32)new_second) >> PAGE_SHIFT;
+		memcpy(new_second, old_second, PAGE_SIZE);
+		for (j=0; j < PAGE_SIZE/sizeof(pte_t); j++)
+		{
+			if (!(new_second[j].flags & PTE_PRESENT))
+				continue;
+			page_t *page = &pages[new_second[j].frame];
+			BUG_ON(page->count <= 0);
+			page->count++;
+		}
+	}
+
+	/* Copy vm_areas */
+	list_t *vm_area_iter;
+	list_init(&mm->vm_areas);
+	list_for_each(&current->mm.vm_areas, vm_area_iter) {
+		vm_area_t *vm_area = list_get(vm_area_iter, vm_area_t, list);
+		vm_area_t *new_area = kzalloc(sizeof(vm_area_t));
+		BUG_ON(!new_area);
+		memcpy(new_area, vm_area, sizeof(vm_area_t));
+		list_add_tail(&mm->vm_areas, &new_area->list);
+	}
+	return 0;
+out:
+	return -ENOMEM;
+}
+
+int mm_add_area(u32 start, u32 size, u32 flags)
+{
+	list_t *vm_area_iter;
+	list_for_each(&current->mm.vm_areas, vm_area_iter) {
+		vm_area_t *vm_area = list_get(vm_area_iter, vm_area_t, list);
+		if (start < vm_area->start)
+			break;
+	}
+	vm_area_t *new_area = kzalloc(sizeof(vm_area_t));
+	if (!new_area)
+		return -ENOMEM;
+	new_area->start = start;
+	new_area->end = start + size;
+	new_area->flags = flags;
+	list_add_before(vm_area_iter, &new_area->list);
+	return 0;
+}
