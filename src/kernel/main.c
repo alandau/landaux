@@ -191,11 +191,12 @@ static void init_idt(void)
 	/* Exceptions */
 	for (i = 0; i < 32; i++)
 		setup_idt_entry(&idt[i], irq_entry_points_start + i*16, 1, 0);
+	idt[14].trapgate = 0;	/* page fault */
 	/* IRQs */
 	for (i = 0x20; i < 0x30; i++)
 		setup_idt_entry(&idt[i], irq_entry_points_start + i*16, 0, 0);
 	/* Syscall */
-	setup_idt_entry(&idt[0x30], irq_entry_points_start + 0x30*16, 0, 3);
+	setup_idt_entry(&idt[0x30], irq_entry_points_start + 0x30*16, 1, 3);
 
 	idtr.limit = sizeof(idt) - 1;
 	idtr.addr = (unsigned long)&idt;
@@ -367,7 +368,7 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	kernel_thread(kthread_func, "2");
 #endif
 	kernel_thread(run_init, NULL);
-	kernel_thread(kthread_func, NULL);
+//	kernel_thread(kthread_func, NULL);
 	schedule();
 	
 #if 0

@@ -48,7 +48,13 @@ u32 alloc_phys_page(void)
 	}
 	bitmap[i] |= bit;			/* mark it as used */
 	memused += PAGE_SIZE;
-	return first_frame + i*32 + bit_offs;	/* 32 == bits in long */
+	u32 frame = first_frame + i*32 + bit_offs;	/* 32 == bits in long */
+	if (pages) {
+		page_t *page = &pages[frame];
+		BUG_ON(page->count > 0);
+		page->count = 1;
+	}
+	return frame;
 }
 
 /* frees frame by number */
@@ -63,6 +69,9 @@ void free_phys_page(u32 frame)
 	BUG_ON((bitmap[i] & bit) == 0);		/* page is free */
 	bitmap[i] &= ~bit;
 	memused -= PAGE_SIZE;
+	page_t *page = &pages[frame];
+	BUG_ON(page->count != 1);
+	page->count = 0;
 }
 
 u32 get_mem_size(void)

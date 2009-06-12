@@ -33,7 +33,7 @@ void map_memory(u32 size)
 		}
 		pde++;
 	}
-	__asm__ __volatile__ ("movl %%cr3, %%eax; movl %%eax, %%cr3" : : : "eax", "memory");
+	tlb_invalidate_all();
 }
 
 static void map_page(u32 frame, u32 addr, int flags)
@@ -55,7 +55,7 @@ static void map_page(u32 frame, u32 addr, int flags)
 	pte->frame = frame;
 	pte->reserved = 0;
 	pte->flags = PTE_PRESENT | flags;
-	__asm__ __volatile__ ("invlpg (%0)" : : "r"(addr << PAGE_SHIFT) : "memory");
+	tlb_invalidate_entry(addr << PAGE_SHIFT);
 }
 
 void map_kernel_page(u32 frame, u32 addr)

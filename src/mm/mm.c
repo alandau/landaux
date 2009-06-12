@@ -516,7 +516,7 @@ void init_mm(u32 size)
 	size >>= PAGE_SHIFT;
 	pages = kmalloc(size * sizeof(page_t));
 	for (i = 0; i < size; i++)
-		pages[i].count = -1;
+		pages[i].count = 0;
 }
 
 int clone_mm(task_t *p)
@@ -543,9 +543,12 @@ int clone_mm(task_t *p)
 		{
 			if (!(new_second[j].flags & PTE_PRESENT))
 				continue;
+			new_second[j].flags &= ~PTE_WRITE;	/* for COW */
+			old_second[j].flags &= ~PTE_WRITE;	/* for COW */
 			page_t *page = &pages[new_second[j].frame];
 			BUG_ON(page->count <= 0);
 			page->count++;
+			tlb_invalidate_entry(((i<<10) + j) << PAGE_SHIFT);
 		}
 	}
 
@@ -581,3 +584,66 @@ int mm_add_area(u32 start, u32 size, u32 flags)
 	list_add_before(vm_area_iter, &new_area->list);
 	return 0;
 }
+
+vm_area_t *mm_find_area(u32 address)
+{
+	list_t *vm_area_iter;
+	list_for_each(&current->mm.vm_areas, vm_area_iter) {
+		vm_area_t *vm_area = list_get(vm_area_iter, vm_area_t, list);
+		if (address >= vm_area->start && address < vm_area->end)
+			return vm_area;
+	}
+	return NULL;
+}
+
+pte_t *find_user_pte(u32 address)
+{
+	address >>= PAGE_SHIFT;
+	u32 i = address >> 10;
+	u32 j = address & 0x03FF;
+	pte_t *first = &current->mm.page_dir[i];
+	BUG_ON(!(first->flags & PTE_PRESENT));
+	pte_t *second = (pte_t *)P2V(first->frame<<PAGE_SHIFT) + j;
+	BUG_ON(!(second->flags & PTE_PRESENT));
+	return second;
+}
+
+void do_page_fault(regs_t r)
+{
+	int present = r.error_code & 0x01;
+	int write = r.error_code & 0x02;
+	int usermode = r.error_code & 0x04;
+	u32 address = get_cr2();
+
+	if (present && write && usermode) {
+		/* check if it's COW */
+		vm_area_t *area = mm_find_area(address);
+		if (area && (area->flags & VM_AREA_WRITE)) {
+			pte_t *pte = find_user_pte(address);
+			page_t *page = &pages[pte->frame];
+			BUG_ON(page->count < 1);
+			printk("count=%d\n", page->count);
+			if (page->count == 1) {
+				/* Just enable write */
+				pte->flags |= PTE_WRITE;
+			} else {
+				void *oldpage = (void *)P2V(pte->frame << PAGE_SHIFT);
+				void *newpage = alloc_page(0 /* flags are ignored */);
+				memcpy(newpage, oldpage, PAGE_SIZE);
+				pte->frame = V2P((u32)newpage) >> PAGE_SHIFT;
+				pte->flags |= PTE_WRITE;
+				page->count--;
+			}
+			tlb_invalidate_entry(address);
+			printk("Enabled write to address %x in process %d\n", address, current->pid);
+			u32 x=0xffffffff;
+			while (x--) asm volatile ("nop");
+			return;
+		}
+	}
+	printk("Page fault\n");
+	printk("Trying to %s address (from %s mode, present=%d): 0x%08x\n", (write?"write to":"read from"),
+		(usermode?"user":"kernel"), present, address);
+	oops(&r);
+}
+

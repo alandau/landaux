@@ -2,7 +2,8 @@
 #define STDDEF_H
 
 #define NULL ((void *)0)
-#define STR(x) #x
+#define STR(x) _STR(x)
+#define _STR(x) #x
 
 typedef char s8;
 typedef short s16;

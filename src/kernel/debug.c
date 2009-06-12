@@ -16,15 +16,16 @@ static inline int is_code(u32 address)
 /* prints call stack in symbolic form */
 void print_stack(const regs_t *r)
 {
-	int i = MAX_CALL_TRACE;
-	u32 *ebp = (u32 *)(r ? r->ebp : get_ebp());
-	u32 page = (u32)ebp & ~(PAGE_SIZE-1);
 	symbol_t *sym;
 	if (r) {
 		sym = find_symbol(r->eip);
 		printk("At 0x%x %s+0x%x/0x%x [0x%x] \n", sym->address, sym->symbol,
 			r->eip - sym->address, (sym+1)->address-sym->address, r->eip);
 	}
+	int i = MAX_CALL_TRACE;
+	/* Use r->ebp only if registers are set and it's kernel mode */
+	u32 *ebp = (u32 *)(r && (r->cs & 3) == 0 ? r->ebp : get_ebp());
+	u32 page = (u32)ebp & ~(PAGE_SIZE-1);
 	printk("Call Stack:\n");
 	while (i-- && page == ((u32)ebp & ~(PAGE_SIZE-1))) {
 		u32 addr = *(ebp+1);

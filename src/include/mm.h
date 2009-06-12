@@ -76,4 +76,15 @@ int mm_add_area(u32 start, u32 size, u32 flags);
 u32 get_task_cr3(mm_t *mm);
 void init_task_mm(mm_t *mm);
 
+static inline void tlb_invalidate_entry(u32 address)
+{
+	__asm__ __volatile__ ("invlpg (%0)" : : "r"(address) : "memory");
+}
+
+static inline void tlb_invalidate_all(void)
+{
+	int tmp;
+	__asm__ __volatile__ ("movl %%cr3, %0; movl %0, %%cr3" : "=r"(tmp): : "memory");
+}
+
 #endif

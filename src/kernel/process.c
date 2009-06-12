@@ -44,8 +44,7 @@ int sys_fork(void)
 	task_t *p = alloc_page(MAP_READWRITE);
 	*p = *current;
 	p->pid = next_free_pid++;
-	if (p->pid < 0) BUG();		// overflow
-	p->state = TASK_RUNNING;
+	BUG_ON(p->pid < 0);		// overflow
 	list_add(&current->tasks, &p->tasks);
 	list_add(&current->running, &p->running);
 	int ret = 0;
@@ -71,10 +70,10 @@ int kernel_thread(void (*fn)(void *data), void *data)
 	task_t *p = alloc_page(MAP_READWRITE);
 	*p = *idle;
 	p->pid = next_free_pid++;
-	if (p->pid < 0) BUG();		// overflow
-	p->state = TASK_RUNNING;
+	BUG_ON(p->pid < 0);		// overflow
 	list_add(&idle->tasks, &p->tasks);
 	list_add(&idle->running, &p->running);
+	list_init(&p->mm.vm_areas);
 	p->timeslice = 10;
 	p->regs.eip = (u32)fn;
 	p->regs.esp = (u32)((char *)p + sizeof(task_stack_t));
@@ -182,10 +181,10 @@ int sys_exec(const char *path)
 int kernel_exec(const char *path)
 {
 	int ret;
+	/* setup the stack as if ss and esp were pushed and call exec() via a syscall */
 	__asm__ __volatile__ (
-		"orl $0xfff, %%esp\n\t"
-		"inc %%esp\n\t"
-		"subl $8, %%esp\n\t"
+		"orl $" STR(PAGE_SIZE-1) ", %%esp\n\t"
+		"subl $7, %%esp\n\t"
 		"int $0x30"
 		: "=a" (ret) : "0" (2), "d" (path));
 	return ret;

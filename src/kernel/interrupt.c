@@ -78,14 +78,6 @@ void do_general_prot(regs_t r)
 	oops(&r);
 }
 
-void do_page_fault(regs_t r)
-{
-	printk("Page fault\n");
-	printk("Trying to %s address (from %s mode): 0x%08x\n", (r.error_code & 0x02?"write to":"read from"),
-		(r.error_code & 0x04?"user":"kernel"), get_cr2());
-	oops(&r);
-}
-
 void do_coprocessor_err(regs_t r)
 {
 	printk("Coprocessor error\n");
