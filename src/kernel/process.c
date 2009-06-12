@@ -38,7 +38,6 @@ void init_tss(void)
 
 int sys_fork(void)
 {
-#if 1
 	extern char ret_from_interrupt[];
 
 	task_t *p = alloc_page(MAP_READWRITE);
@@ -60,9 +59,6 @@ int sys_fork(void)
 out:
 	free_page(p);
 	return ret;
-#else
-	return 0;
-#endif
 }
 
 int kernel_thread(void (*fn)(void *data), void *data)
@@ -84,13 +80,18 @@ int kernel_thread(void (*fn)(void *data), void *data)
 
 int sys_exit(void)
 {
-#if 0
-	free_mm(&current->mm);
-	list_del(&current->tasks);
-	list_del(&current->running);
-	free_pages(current, sizeof(task_stack_t)/PAGE_SIZE);
-#endif
+	current->state = TASK_ZOMBIE;
+	free_mm();
+	schedule();	/* will call free_task() after a context switch */
+	BUG();
 	return 0;
+}
+
+void free_task(task_t *p)
+{
+	list_del(&p->tasks);
+	free_page(p->mm.page_dir);
+	free_page(p);
 }
 
 #define CODE_START	0x100000	/* 1MB */

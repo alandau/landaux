@@ -7,8 +7,8 @@
 
 #define TASK_RUNNING			0
 #define TASK_INTERRUPTIBLE		1
-#define TASK_UNINTERRUPTIBLE	2
-#define TASK_ZOMBIE				3
+#define TASK_UNINTERRUPTIBLE		2
+#define TASK_ZOMBIE			3
 
 typedef struct {
 	u32 esp;
@@ -68,6 +68,7 @@ void init_idle(void);
 void init_tss(void);
 int kernel_thread(void (*fn)(void *data), void *data);
 int kernel_exec(const char *path);
+void free_task(task_t *p);
 
 
 #endif

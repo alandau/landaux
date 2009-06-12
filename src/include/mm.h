@@ -71,7 +71,7 @@ u32 virt_to_phys(void *address);
 
 struct task_struct;
 int clone_mm(struct task_struct *dest);
-void free_mm(mm_t *mm);
+void free_mm(void);
 int mm_add_area(u32 start, u32 size, u32 flags);
 u32 get_task_cr3(mm_t *mm);
 void init_task_mm(mm_t *mm);

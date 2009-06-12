@@ -567,6 +567,37 @@ out:
 	return -ENOMEM;
 }
 
+void free_mm(void)
+{
+	task_t *p = current;
+	int i, j;
+	pte_t *page_dir = p->mm.page_dir;
+	for (i=0; i<KERNEL_VIRT_ADDR/(4*1024*1024); i++)
+	{
+		if (!(page_dir[i].flags & PTE_PRESENT))
+			continue;
+		pte_t *second = (pte_t *)P2V(page_dir[i].frame<<PAGE_SHIFT);
+		for (j=0; j < PAGE_SIZE/sizeof(pte_t); j++)
+		{
+			if (!(second[j].flags & PTE_PRESENT))
+				continue;
+			page_t *page = &pages[second[j].frame];
+			BUG_ON(page->count <= 0);
+			if (page->count == 1)
+				free_page((void *)P2V(second[j].frame << PAGE_SHIFT));
+			else
+				page->count--;
+		}
+		free_page(second);
+	}
+
+	list_t *vm_area_iter;
+	list_for_each(&current->mm.vm_areas, vm_area_iter) {
+		vm_area_t *vm_area = list_get(vm_area_iter, vm_area_t, list);
+		kfree(vm_area);
+	}
+}
+
 int mm_add_area(u32 start, u32 size, u32 flags)
 {
 	list_t *vm_area_iter;
@@ -596,7 +627,7 @@ vm_area_t *mm_find_area(u32 address)
 	return NULL;
 }
 
-pte_t *find_user_pte(u32 address)
+static pte_t *find_user_pte(u32 address)
 {
 	address >>= PAGE_SHIFT;
 	u32 i = address >> 10;
@@ -622,7 +653,6 @@ void do_page_fault(regs_t r)
 			pte_t *pte = find_user_pte(address);
 			page_t *page = &pages[pte->frame];
 			BUG_ON(page->count < 1);
-			printk("count=%d\n", page->count);
 			if (page->count == 1) {
 				/* Just enable write */
 				pte->flags |= PTE_WRITE;
@@ -635,9 +665,6 @@ void do_page_fault(regs_t r)
 				page->count--;
 			}
 			tlb_invalidate_entry(address);
-			printk("Enabled write to address %x in process %d\n", address, current->pid);
-			u32 x=0xffffffff;
-			while (x--) asm volatile ("nop");
 			return;
 		}
 	}

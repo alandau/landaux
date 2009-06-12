@@ -80,7 +80,7 @@ void *alloc_page(unsigned long flags)
 void free_page(void *p)
 {
 	BUG_ON((u32)p & ~PAGE_MASK);
-	free_phys_page((u32)p >> PAGE_SHIFT);
+	free_phys_page(V2P((u32)p) >> PAGE_SHIFT);
 }
 
 u32 get_task_cr3(mm_t *mm)
