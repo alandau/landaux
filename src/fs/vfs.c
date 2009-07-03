@@ -372,7 +372,7 @@ int vfs_close(file_t *f)
 	return ret;
 }
 
-int vfs_read(file_t *f, char *buf, u32 size)
+int vfs_read(file_t *f, void *buf, u32 size)
 {
 	if (!(f->openmode & O_RDONLY))
 		return -EINVAL;
@@ -386,7 +386,7 @@ int vfs_read(file_t *f, char *buf, u32 size)
 	return count;
 }
 
-int vfs_write(file_t *f, const char *buf, u32 size)
+int vfs_write(file_t *f, const void *buf, u32 size)
 {
 	if (!(f->openmode & O_WRONLY))
 		return -EINVAL;

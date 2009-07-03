@@ -29,7 +29,7 @@ static inline int user_fork(void)
 static void run_init(void *data)
 {
 	printk("Running /prog...\n");
-	kernel_exec("/prog");
+	kernel_exec("/empty");
 }
 
 static void kthread_func(void *data)

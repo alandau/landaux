@@ -92,8 +92,8 @@ int vfs_mkdir(const char *path);
 int vfs_rmdir(const char *path);
 int vfs_unlink(const char *path);
 file_t *vfs_open(const char *name, int flags);
-int vfs_read(file_t *f, char *buf, u32 size);
-int vfs_write(file_t *f, const char *buf, u32 size);
+int vfs_read(file_t *f, void *buf, u32 size);
+int vfs_write(file_t *f, const void *buf, u32 size);
 int vfs_lseek(file_t *f, u32 offset, int whence);
 
 #endif

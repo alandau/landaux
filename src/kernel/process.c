@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sched.h>
 #include <fs.h>
+#include <elf.h>
 
 task_stack_t idle_task_stack __attribute__ ((aligned (PAGE_SIZE)));
 tss_t tss __attribute__ ((aligned (PAGE_SIZE)));
@@ -80,6 +81,10 @@ int kernel_thread(void (*fn)(void *data), void *data)
 
 int sys_exit(void)
 {
+	if (current->pid == 1) {
+		printk("BUG: PID 1 exiting\n");
+		BUG();
+	}
 	current->state = TASK_ZOMBIE;
 	free_mm();
 	schedule();	/* will call free_task() after a context switch */
@@ -98,10 +103,10 @@ void free_task(task_t *p)
 #define STACK_START	KERNEL_VIRT_ADDR
 #define STACK_SIZE	PAGE_SIZE
 
-int do_exec(const char *path)
+int do_exec_flat(const char *path)
 {
 	int ret;
-	printk("do_exec: path=<%s>\n", path);
+	printk("do_exec_flat: path=<%s>\n", path);
 	file_t *f = vfs_open(path, O_RDONLY);
 	if (IS_ERR(f)) {
 		printk("do_exec: Can't open file '%s' (%d)\n", path, PTR_ERR(f));
@@ -147,6 +152,166 @@ out:
 	return ret;
 }
 
+static u32 elf_flags_to_pte_flags(Elf32_Word flags)
+{
+	return flags & PF_W ? PTE_WRITE : 0;
+}
+
+static u32 elf_flags_to_area_flags(Elf32_Word flags)
+{
+	u32 ret = 0;
+	if (flags & PF_R) ret |= VM_AREA_READ;
+	if (flags & PF_W) ret |= VM_AREA_WRITE;
+	if (flags & PF_X) ret |= VM_AREA_EXEC;
+	return ret;
+}
+
+int do_exec_elf(const char *path)
+{
+	int ret;
+	printk("do_exec_elf: path=<%s>\n", path);
+	file_t *f = vfs_open(path, O_RDONLY);
+	if (IS_ERR(f)) {
+		printk("do_exec_elf: Can't open file '%s' (%d)\n", path, PTR_ERR(f));
+		return PTR_ERR(f);
+	}
+	Elf_Ehdr ehdr;
+	ret = vfs_read(f, &ehdr, sizeof(ehdr));
+	if (ret < 0) {
+		vfs_close(f);
+		printk("do_exec_elf: Can't read ELF header '%s' (%d)\n", path, ret);
+		return ret;
+	}
+	if (ret != sizeof(ehdr)) {
+		vfs_close(f);
+		printk("do_exec_elf: Can't read full ELF header '%s' (%d)\n", path, ret);
+		return -ENOEXEC;
+	}
+	if (memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0 || ehdr.e_ident[EI_CLASS] != ELFCLASS32 ||
+			ehdr.e_ident[EI_DATA] != ELFDATA2LSB || ehdr.e_ident[EI_VERSION] != EV_CURRENT) {
+		vfs_close(f);
+		printk("do_exec_elf: Not an ELF file '%s'\n", path);
+		return -ENOEXEC;
+	}
+	if (ehdr.e_type != ET_EXEC || ehdr.e_machine != EM_386 || ehdr.e_version != EV_CURRENT || ehdr.e_phoff == 0) {
+		vfs_close(f);
+		printk("do_exec_elf: Not an x86 executable ELF file '%s'\n", path);
+		return -ENOEXEC;
+	}
+	int i;
+	Elf32_Word stack_flags = PF_R | PF_W | PF_X;
+	for (i = 0; i < ehdr.e_phnum; i++) {
+		Elf_Phdr phdr;
+		ret = vfs_lseek(f, ehdr.e_phoff + i*sizeof(phdr), SEEK_SET);
+		if (ret < 0) {
+			vfs_close(f);
+			printk("do_exec_elf: Can't seek past EOF '%s' (%d)\n", path, ret);
+			return ret;
+		}
+		ret = vfs_read(f, &phdr, sizeof(phdr));
+		if (ret < 0) {
+			vfs_close(f);
+			printk("do_exec_elf: Can't read segment %d '%s' (%d)\n", i, path, ret);
+			return ret;
+		}
+		if (ret != sizeof(phdr)) {
+			vfs_close(f);
+			printk("do_exec_elf: Can't read full segment %d '%s' (%d)\n", i, path, ret);
+			return -ENOEXEC;
+		}
+		switch (phdr.p_type) {
+		case PT_NULL:
+			break;
+		case PT_LOAD:
+			/*
+			 * Map file offset phdr.p_offset of size phdr.p_filesz to
+			 * virtual address phdr.p_vaddr of size phdr.p_memsz.
+			 * p_filesz may be less (but not greater) than p_memsz, in which
+			 * case, the spare memory area should be zero-filled.
+			 * p_vaddr and p_offset are not neccessarily page-aligned, but
+			 * p_vaddr = p_offset (mod PAGE_SIZE).
+			 */
+			if (phdr.p_filesz > phdr.p_memsz) {
+				vfs_close(f);
+				printk("do_exec_elf: File size > mem size in segment %d '%s'\n", i, path);
+				return -ENOEXEC;
+			}
+			u32 offset_in_page = phdr.p_offset & ~PAGE_MASK;
+			if ((phdr.p_vaddr & ~PAGE_MASK) != offset_in_page) {
+				vfs_close(f);
+				printk("do_exec_elf: Bad offsets in segment %d '%s'\n", i, path);
+				return -ENOEXEC;
+			}
+			u32 file_offset = phdr.p_offset - offset_in_page;
+			u32 virt_addr = phdr.p_vaddr - offset_in_page;
+			u32 read_size = phdr.p_filesz + offset_in_page;
+			u32 mem_size = ROUND_PAGE_UP(phdr.p_memsz + offset_in_page);
+			u32 flags = elf_flags_to_pte_flags(phdr.p_flags);
+			int j;
+			for (j = 0; j < mem_size >> PAGE_SHIFT; j++) {
+				u32 frame = alloc_phys_page();
+				map_user_page(frame, virt_addr + (j<<PAGE_SHIFT), flags);
+			}
+			ret = vfs_lseek(f, file_offset, SEEK_SET);
+			if (ret < 0) {
+				vfs_close(f);
+				printk("do_exec_elf: Can't seek in segment past EOF '%s' (%d)\n", path, ret);
+				return ret;
+			}
+			u32 count = 0;
+			while (count < read_size) {
+				ret = vfs_read(f, (void *)(virt_addr + count), read_size - count);
+				if (ret < 0) {
+					vfs_close(f);
+					printk("do_exec_elf: Can't read segment data %d '%s' (%d)\n", i, path, ret);
+					return ret;
+				}
+				if (ret == 0) {
+					vfs_close(f);
+					printk("do_exec_elf: Reached EOF in segment %d '%s'\n", i, path);
+					return -ENOEXEC;
+				}
+				count += ret;
+			}
+			memset((void *)(virt_addr + read_size), 0, mem_size - read_size);
+			ret = mm_add_area(virt_addr, mem_size, elf_flags_to_area_flags(phdr.p_flags));
+			if (ret < 0) {
+				printk("do_exec_elf: mm_add_area failed in segment %d '%s' (%d)\n", i, path, ret);
+				return ret;
+			}
+			break;
+		case PT_GNU_STACK:
+			stack_flags = phdr.p_flags;
+			break;
+		default:
+			vfs_close(f);
+			printk("do_exec_elf: Unknown segment type %d in segment %d '%s' (%d)\n", phdr.p_type, i, path, ret);
+			return -ENOEXEC;
+		}
+
+	}
+	vfs_close(f);
+
+	/* setup stack */
+	u32 stack = alloc_phys_page();
+	map_user_page(stack, STACK_START - STACK_SIZE, elf_flags_to_pte_flags(stack_flags));
+	ret = mm_add_area(STACK_START - STACK_SIZE, STACK_SIZE, elf_flags_to_area_flags(stack_flags));
+	if (ret < 0) {
+		printk("do_exec_elf: mm_add_area failed for stack '%s' (%d)\n", path, ret);
+		return ret;
+	}
+
+	regs_t *r = (regs_t *)((task_stack_t *)current + 1) - 1;
+	r->eax = r->ebx = r->ecx = r->edx = r->esi = r->edi = r->ebp = 0;
+	r->cs = USER_CS;
+	r->ds = r->es = r->fs = r->gs = r->ss = USER_DS;
+	r->eip = ehdr.e_entry;
+	r->esp = STACK_START;
+	r->eflags = (1<<9) | (1<<1);	// 9 is IF, 1 is always on
+	printk("do_exec: success\n");
+	return 0;
+}
+
 int sys_exec(const char *path)
 {
 #if 0
@@ -176,7 +341,7 @@ int sys_exec(const char *path)
 	regs->eip = CODE_START;
 	regs->esp = STACK_START;
 #endif
-	return do_exec(path);
+	return do_exec_elf(path);
 }
 
 int kernel_exec(const char *path)
