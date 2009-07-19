@@ -335,7 +335,7 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	while (1);
 #endif
 	/* mbi->mem_upper is the amount of memory (in KB) above 1MB */
-	printk("Found %lu MB of memory.\n", mbi->mem_upper/1024 + 1);
+	printk("Found %lu KB of memory.\n", mbi->mem_upper+1024);
 	init_gdt();
 	init_idt();
 	base = get_modules_end(mbi);

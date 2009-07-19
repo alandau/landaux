@@ -16,7 +16,6 @@ void map_memory(u32 size)
 	first_frame = (4*1024*1024) / PAGE_SIZE;
 	pde++;
 	size >>= PAGE_SHIFT;
-	BUG_ON((size % 1024) != 0);
 	for (i = 0; i < size / 1024; i++) {
 		u32 frame = alloc_phys_page();
 		pte_t *pte;
@@ -32,6 +31,22 @@ void map_memory(u32 size)
 			pte++;
 		}
 		pde++;
+	}
+	if ((size % 1024) != 0) {
+		u32 frame = alloc_phys_page();
+		pte_t *pte;
+		BUG_ON(frame == 0);
+		pde->frame = frame;
+		pde->flags = PTE_PRESENT | PTE_WRITE;
+		pde->reserved = 0;
+		pte = (pte_t *)P2V(frame << PAGE_SHIFT);
+		for (j = 0; j < size % 1024; j++) {
+			pte->frame = first_frame + i * 1024 + j;
+			pte->flags = PTE_PRESENT | PTE_WRITE;
+			pte->reserved = 0;
+			pte++;
+		}
+
 	}
 	tlb_invalidate_all();
 }
