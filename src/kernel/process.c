@@ -103,6 +103,7 @@ void free_task(task_t *p)
 #define STACK_START	KERNEL_VIRT_ADDR
 #define STACK_SIZE	PAGE_SIZE
 
+#if 0
 int do_exec_flat(const char *path)
 {
 	int ret;
@@ -151,18 +152,30 @@ out:
 	free_phys_page(frame);
 	return ret;
 }
+#endif
 
 static u32 elf_flags_to_pte_flags(Elf32_Word flags)
 {
 	return flags & PF_W ? PTE_WRITE : 0;
 }
 
+#if 0
 static u32 elf_flags_to_area_flags(Elf32_Word flags)
 {
 	u32 ret = 0;
 	if (flags & PF_R) ret |= VM_AREA_READ;
 	if (flags & PF_W) ret |= VM_AREA_WRITE;
 	if (flags & PF_X) ret |= VM_AREA_EXEC;
+	return ret;
+}
+#endif
+
+static u32 elf_flags_to_mmap_prot(Elf32_Word flags)
+{
+	u32 ret = 0;
+	if (flags & PF_R) ret |= PROT_READ;
+	if (flags & PF_W) ret |= PROT_WRITE;
+	if (flags & PF_X) ret |= PROT_EXEC;
 	return ret;
 }
 
@@ -245,8 +258,24 @@ int do_exec_elf(const char *path)
 			u32 file_offset = phdr.p_offset - offset_in_page;
 			u32 virt_addr = phdr.p_vaddr - offset_in_page;
 			u32 read_size = phdr.p_filesz + offset_in_page;
-			u32 mem_size = ROUND_PAGE_UP(phdr.p_memsz + offset_in_page);
+			u32 mem_size = phdr.p_memsz + offset_in_page;
+#if 0
 			u32 flags = elf_flags_to_pte_flags(phdr.p_flags);
+#endif
+			u32 prot = elf_flags_to_mmap_prot(phdr.p_flags);
+			ret = PTR_ERR(do_mmap(f, file_offset, virt_addr, read_size, prot, MAP_PRIVATE|MAP_FIXED));
+			if (IS_ERR(ERR_PTR(ret))) {
+				printk("do_exec_elf: do_mmap(file) failed in segment %d '%s' (%d)\n", i, path, ret);
+				return ret;
+			}
+			if (mem_size > ROUND_PAGE_UP(read_size)) {
+				ret = PTR_ERR(do_mmap(NULL, 0, virt_addr + ROUND_PAGE_UP(read_size), mem_size-ROUND_PAGE_UP(read_size), prot, MAP_PRIVATE|MAP_FIXED));
+				if (IS_ERR(ERR_PTR(ret)) < 0) {
+					printk("do_exec_elf: do_mmap(mem) failed in segment %d '%s' (%d)\n", i, path, ret);
+					return ret;
+				}
+			}
+#if 0
 			int j;
 			for (j = 0; j < mem_size >> PAGE_SHIFT; j++) {
 				u32 frame = alloc_phys_page();
@@ -279,13 +308,14 @@ int do_exec_elf(const char *path)
 				printk("do_exec_elf: mm_add_area failed in segment %d '%s' (%d)\n", i, path, ret);
 				return ret;
 			}
+#endif
 			break;
 		case PT_GNU_STACK:
 			stack_flags = phdr.p_flags;
 			break;
 		default:
 			vfs_close(f);
-			printk("do_exec_elf: Unknown segment type %d in segment %d '%s' (%d)\n", phdr.p_type, i, path, ret);
+			printk("do_exec_elf: Unknown segment type %d in segment %d '%s'\n", phdr.p_type, i, path);
 			return -ENOEXEC;
 		}
 
@@ -293,11 +323,14 @@ int do_exec_elf(const char *path)
 	vfs_close(f);
 
 	/* setup stack */
+#if 0
 	u32 stack = alloc_phys_page();
 	map_user_page(stack, STACK_START - STACK_SIZE, elf_flags_to_pte_flags(stack_flags));
 	ret = mm_add_area(STACK_START - STACK_SIZE, STACK_SIZE, elf_flags_to_area_flags(stack_flags));
-	if (ret < 0) {
-		printk("do_exec_elf: mm_add_area failed for stack '%s' (%d)\n", path, ret);
+#endif
+	ret = PTR_ERR(do_mmap(NULL, 0, STACK_START - STACK_SIZE, STACK_SIZE, elf_flags_to_mmap_prot(stack_flags), MAP_PRIVATE|MAP_FIXED));
+	if (IS_ERR(ERR_PTR(ret))) {
+		printk("do_exec_elf: do_mmap failed for stack '%s' (%d)\n", path, ret);
 		return ret;
 	}
 

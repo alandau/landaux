@@ -598,7 +598,7 @@ void free_mm(void)
 	}
 }
 
-int mm_add_area(u32 start, u32 size, u32 flags)
+int mm_add_area(u32 start, u32 size, int prot, file_t *file, u32 offset)
 {
 	list_t *vm_area_iter;
 	list_for_each(&current->mm.vm_areas, vm_area_iter) {
@@ -611,9 +611,20 @@ int mm_add_area(u32 start, u32 size, u32 flags)
 		return -ENOMEM;
 	new_area->start = start;
 	new_area->end = start + size;
-	new_area->flags = flags;
+	new_area->prot = prot;
+	new_area->file = file;
+	new_area->offset = offset;
 	list_add_before(vm_area_iter, &new_area->list);
 	return 0;
+}
+
+static void mm_print_areas(void)
+{
+	list_t *vm_area_iter;
+	list_for_each(&current->mm.vm_areas, vm_area_iter) {
+		vm_area_t *vm_area = list_get(vm_area_iter, vm_area_t, list);
+		printk("%08x-%08x %d [%s:%d]\n", vm_area->start, vm_area->end, vm_area->prot, (vm_area->file?vm_area->file->dentry->name:""), vm_area->offset);
+	}
 }
 
 vm_area_t *mm_find_area(u32 address)
@@ -621,7 +632,7 @@ vm_area_t *mm_find_area(u32 address)
 	list_t *vm_area_iter;
 	list_for_each(&current->mm.vm_areas, vm_area_iter) {
 		vm_area_t *vm_area = list_get(vm_area_iter, vm_area_t, list);
-		if (address >= vm_area->start && address < vm_area->end)
+		if (address >= vm_area->start && address < ROUND_PAGE_UP(vm_area->end))
 			return vm_area;
 	}
 	return NULL;
@@ -633,10 +644,29 @@ static pte_t *find_user_pte(u32 address)
 	u32 i = address >> 10;
 	u32 j = address & 0x03FF;
 	pte_t *first = &current->mm.page_dir[i];
-	BUG_ON(!(first->flags & PTE_PRESENT));
-	pte_t *second = (pte_t *)P2V(first->frame<<PAGE_SHIFT) + j;
-	BUG_ON(!(second->flags & PTE_PRESENT));
+	if (!(first->flags & PTE_PRESENT)) {
+		u32 table = alloc_phys_page();
+		BUG_ON(table == 0);
+		memset((void *)P2V(table << PAGE_SHIFT), 0, PAGE_SIZE);
+		first->frame = table;
+		first->reserved = 0;
+		first->flags = PTE_PRESENT | PTE_WRITE | PTE_USER;
+	}
+	pte_t *second = (pte_t *)P2V(first->frame << PAGE_SHIFT) + j;
 	return second;
+}
+
+void *do_mmap(file_t *f, u32 offset, u32 vaddr, u32 len, int prot, int flags)
+{
+	if ((flags & MAP_TYPE) != MAP_PRIVATE)
+		return ERR_PTR(-EINVAL);
+	if (!(flags & MAP_FIXED))
+		return ERR_PTR(-EINVAL);
+	int ret = mm_add_area(vaddr, len, prot, f, offset);
+	if (ret < 0)
+		return ERR_PTR(ret);
+	return (void *)vaddr;
+
 }
 
 void do_page_fault(regs_t r)
@@ -649,25 +679,72 @@ void do_page_fault(regs_t r)
 	if (present && write && usermode) {
 		/* check if it's COW */
 		vm_area_t *area = mm_find_area(address);
-		if (area && (area->flags & VM_AREA_WRITE)) {
-			pte_t *pte = find_user_pte(address);
-			page_t *page = &pages[pte->frame];
-			BUG_ON(page->count < 1);
-			if (page->count == 1) {
-				/* Just enable write */
-				pte->flags |= PTE_WRITE;
-			} else {
-				void *oldpage = (void *)P2V(pte->frame << PAGE_SHIFT);
-				void *newpage = alloc_page(0 /* flags are ignored */);
-				memcpy(newpage, oldpage, PAGE_SIZE);
-				pte->frame = V2P((u32)newpage) >> PAGE_SHIFT;
-				pte->flags |= PTE_WRITE;
-				page->count--;
-			}
-			tlb_invalidate_entry(address);
-			return;
+		if (!area || !(area->prot & PROT_WRITE))
+			goto bad;
+		pte_t *pte = find_user_pte(address);
+		page_t *page = &pages[pte->frame];
+		BUG_ON(page->count < 1);
+		if (page->count == 1) {
+			/* Just enable write */
+			pte->flags |= PTE_WRITE;
+		} else {
+			void *oldpage = (void *)P2V(pte->frame << PAGE_SHIFT);
+			void *newpage = alloc_page(0 /* flags are ignored */);
+			memcpy(newpage, oldpage, PAGE_SIZE);
+			pte->frame = V2P((u32)newpage) >> PAGE_SHIFT;
+			pte->flags |= PTE_WRITE;
+			page->count--;
 		}
+		tlb_invalidate_entry(address);
+		return;
 	}
+	else if (!present && usermode) {
+		vm_area_t *area = mm_find_area(address);
+		if (!area) {
+			goto bad;
+		}
+		u32 flags = PTE_PRESENT | PTE_USER;
+		if ((!write && (area->prot & (PROT_READ|PROT_EXEC))) || (write && (area->prot & PROT_WRITE))) {
+			if (area->prot & PROT_WRITE)
+				flags |= PTE_WRITE;
+		} else
+			goto bad;
+		pte_t *pte = find_user_pte(address);
+		u32 frame = alloc_phys_page();
+		if (frame == 0) {
+			printk("do_page_fault: No free memory\n");
+			goto bad;
+		}
+		void *p = (void *)P2V(frame << PAGE_SHIFT);
+		if (area->file) {
+			u32 offset = area->offset + (ROUND_PAGE_DOWN(address) - area->start);
+			int ret = vfs_lseek(area->file, offset, SEEK_SET);
+			if (ret < 0) {
+				printk("do_page_fault: Can't seek in file %s to offset %d: %d\n", area->file->dentry->name, offset, ret);
+				goto bad;
+			}
+			u32 len = PAGE_SIZE;
+			if (len > area->end - ROUND_PAGE_DOWN(address))
+				len = area->end - ROUND_PAGE_DOWN(address);
+			ret = vfs_read(area->file, p, len);
+			if (ret < 0) {
+				printk("do_page_fault: Can't read from file %s at offset %d: %d\n", area->file->dentry->name, offset, ret);
+				goto bad;
+			} else if (ret != len) {
+				printk("do_page_fault: Short read from file %s at offset %d (len=%d): %d\n", area->file->dentry->name, offset, len, ret);
+				goto bad;
+			}
+			if (len < PAGE_SIZE)
+				memset((char *)p + len, 0, PAGE_SIZE - len);
+		} else {
+			memset(p, 0, PAGE_SIZE);
+		}
+		pte->frame = frame;
+		pte->flags = flags;
+		tlb_invalidate_entry(address);
+		return;
+	}
+bad:
 	printk("Page fault\n");
 	printk("Trying to %s address (from %s mode, present=%d): 0x%08x\n", (write?"write to":"read from"),
 		(usermode?"user":"kernel"), present, address);

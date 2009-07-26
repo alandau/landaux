@@ -4,13 +4,24 @@
 #include <stddef.h>
 #include <mem.h>
 #include <list.h>
+#include <fs.h>
 
 #define MAP_USERSPACE	0x01
 #define MAP_READWRITE	0x02
 
-#define VM_AREA_READ	0x04
-#define VM_AREA_WRITE	0x02
-#define VM_AREA_EXEC	0x01
+#define PROT_READ       0x1             /* Page can be read.  */
+#define PROT_WRITE      0x2             /* Page can be written.  */
+#define PROT_EXEC       0x4             /* Page can be executed.  */
+#define PROT_NONE       0x0             /* Page can not be accessed.  */
+
+/* Sharing types (must choose one and only one of these).  */
+#define MAP_SHARED	0x01            /* Share changes.  */
+#define MAP_PRIVATE	0x02            /* Changes are private.  */
+#define MAP_TYPE	0x0f            /* Mask for type of mapping.  */
+
+/* Other flags.  */
+#define MAP_FIXED	0x10            /* Interpret addr exactly.  */
+#define MAP_ANONYMOUS	0x20            /* Don't use a file.  */
 
 typedef struct pte_struct		/* page table entry */
 {
@@ -28,7 +39,9 @@ extern page_t *pages;
 typedef struct vm_area_struct {
 	u32 start;
 	u32 end;
-	u32 flags;
+	int prot;
+	file_t *file;
+	u32 offset;
 	list_t list;
 } vm_area_t;
 
@@ -72,9 +85,10 @@ u32 virt_to_phys(void *address);
 struct task_struct;
 int clone_mm(struct task_struct *dest);
 void free_mm(void);
-int mm_add_area(u32 start, u32 size, u32 flags);
 u32 get_task_cr3(mm_t *mm);
 void init_task_mm(mm_t *mm);
+
+void *do_mmap(file_t *f, u32 offset, u32 vaddr, u32 len, int prot, int flags);
 
 static inline void tlb_invalidate_entry(u32 address)
 {

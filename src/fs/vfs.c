@@ -328,6 +328,7 @@ file_t *vfs_dopen(dentry_t *d, const char *name, int flags)
 	f->dentry = fd;
 	f->openmode = flags & O_RDWR;
 	f->offset = (flags & O_APPEND) ? fd->size : 0;
+	f->refcnt = 1;
 	if (fd->sb->fs->open) {
 		int ret = fd->sb->fs->open(f, flags);
 		if (ret < 0) {
@@ -365,10 +366,12 @@ file_t *vfs_open(const char *path, int flags)
 int vfs_close(file_t *f)
 {
 	int ret = 0;
-	if (f->dentry->sb->fs->close)
-		ret = f->dentry->sb->fs->close(f);
-	dentry_put(f->dentry);
-	kfree(f);
+	if (--f->refcnt == 0) {
+		if (f->dentry->sb->fs->close)
+			ret = f->dentry->sb->fs->close(f);
+		dentry_put(f->dentry);
+		kfree(f);
+	}
 	return ret;
 }
 

@@ -52,6 +52,7 @@ typedef struct {
 	int openmode;
 	u32 offset;
 	void *priv;
+	int refcnt;
 } file_t;
 
 typedef struct fs {
