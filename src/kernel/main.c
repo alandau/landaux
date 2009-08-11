@@ -363,6 +363,8 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	vfs_mount("ramfs", "/");
 	extract_bootimg(mbi);
 	tree("/");
+	int init_pci(void);
+	init_pci();
 #if 0
 	kernel_thread(kthread_func, "1");
 	kernel_thread(kthread_func, "2");

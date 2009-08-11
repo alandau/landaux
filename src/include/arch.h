@@ -36,6 +36,18 @@ static inline u8 inb(u16 port)
 	return ret;
 }
 
+static inline void outl(u16 port, u32 value)
+{
+	__asm__ __volatile__ ("outl %%eax, %%dx" : /* no output */ : "a" (value), "d" (port));
+}
+
+static inline u32 inl(u16 port)
+{
+	unsigned long ret;
+	__asm__ __volatile__ ("inl %%dx, %%eax" : "=a" (ret) : "d" (port));
+	return ret;
+}
+
 static inline void cli(void)
 {
 	__asm__ __volatile__ ("cli");
