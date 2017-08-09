@@ -192,9 +192,9 @@ DO_NUM:					if(flags & PR_32) {
 
 					/* Convert binary to octal/decimal/hex ASCII */
 					do {
-						unsigned long long temp;
+						unsigned /*long*/ long temp;
 						
-						temp = (unsigned long long)num % radix;
+						temp = (unsigned /*long*/ long)num % radix;
 						where--;
 						if(temp < 10)
 							*where = temp + '0';
@@ -203,7 +203,7 @@ DO_NUM:					if(flags & PR_32) {
 						else
 							*where = temp - 10 + 'a';
 
-						num = (unsigned long long)num / radix;
+						num = (unsigned /*long*/ long)num / radix;
 					} while(num != 0);
 
 					goto EMIT;

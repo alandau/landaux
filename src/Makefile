@@ -16,15 +16,15 @@ ifndef D
 OPT_CFLAGS = -O2
 endif
 
-CC=gcc
-AS=gcc
-LD=ld
+CC=gcc -m32
+AS=gcc -m32
+LD=ld -m elf_i386
 INCLUDE=$(TOPDIR)/include
-CFLAGS := -I$(INCLUDE) -finline-functions -fno-stack-protector -fno-builtin -nostdinc -Wall -Wstrict-prototypes -g $(OPT_CFLAGS)
+CFLAGS := -I$(INCLUDE) -finline-functions -fno-stack-protector -fno-builtin -nostdinc -Wall -Wstrict-prototypes -fno-omit-frame-pointer -g $(OPT_CFLAGS)
 ASFLAGS:= -DASM -I$(INCLUDE) -g
 LDFLAGS:= -g
 
-export CC AS CFLAGS ASFLAGS
+export CC AS LD CFLAGS ASFLAGS LDFLAGS
 
 SUBDIRS:=kernel arch mm drivers fs lib
 .PHONY: scripts
@@ -93,7 +93,8 @@ bochs: install
 debug: QFLAGS=-s -S
 debug: qemu
 
-qemu: install
-	qemu -m 32 -fda ../bochs/floppya.img -no-kqemu $(QFLAGS)
+qemu: image
+	$(MAKE) -C ../usr
+	qemu-system-i386 -m 32 -kernel image.elf -initrd ../usr/initrd.tar $(QFLAGS)
 
 include $(TOPDIR)/Rules.make

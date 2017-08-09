@@ -166,6 +166,8 @@ static int do_exec_elf(const char *path)
 		}
 		switch (phdr.p_type) {
 		case PT_NULL:
+		case PT_NOTE:
+			/* ignore */
 			break;
 		case PT_LOAD:
 			/*
