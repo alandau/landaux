@@ -28,6 +28,56 @@ pci_read_config_X(byte, u8)
 pci_read_config_X(word, u16)
 pci_read_config_X(long, u32)
 
+const char *cls_to_str(u16 cls) {
+	static char res[100];
+	static const struct subclass{
+		u8 sub;
+		const char *str;
+	} subcls_mass_storage[] = {
+		{0x01, "IDE"},
+		{0, 0}
+	}, subcls_network[] = {
+		{0x00, "Ethernet"},
+		{0, 0}
+	}, subcls_display[] = {
+		{0x00, "VGA"},
+		{0, 0}
+	}, subcls_bridge[] = {
+		{0x00, "Host"},
+		{0x01, "ISA"},
+		{0x80, "Other"},
+		{0, 0}
+	};
+	static const struct {
+		u8 cls;
+		const char *str;
+		const struct subclass* sub;
+	} classes[] = {
+		{0x01, "Mass storage", subcls_mass_storage},
+		{0x02, "Network", subcls_network},
+		{0x03, "Display", subcls_display},
+		{0x06, "Bridge", subcls_bridge},
+	};
+	res[0] = '\0';
+	for (int i = 0; i < sizeof(classes)/sizeof(classes[0]); i++) {
+		if (classes[i].cls != (cls >> 8)) {
+			continue;
+		}
+		strcpy(res, classes[i].str);
+		strcat(res, ": ");
+		;
+		for (const struct subclass *sub = classes[i].sub; sub->str; sub++) {
+			if (sub->sub == (cls & 0xff)) {
+				strcat(res, sub->str);
+				return res;
+			}
+		}
+		strcat(res, "Unknown");
+		return res;
+	}
+	return res;
+}
+
 int init_pci(void)
 {
 	int bus, dev, func;
@@ -41,7 +91,7 @@ int init_pci(void)
 					continue;
 				u16 cls = pci_read_config_word(bus, dev, func, 10);
 				u32 sub = pci_read_config_long(bus, dev, func, 0x2c);
-				printk("%d:%d.%d\t%04x:%04x [%04x] sub=%04x:%04x\n", bus, dev, func, vendorid, deviceid, cls, sub&0xffff, sub>>16);
+				printk("%d:%d.%d\t%04x:%04x [%04x] sub=%04x:%04x\t%s\n", bus, dev, func, vendorid, deviceid, cls, sub&0xffff, sub>>16, cls_to_str(cls));
 			}
 		}
 	}
