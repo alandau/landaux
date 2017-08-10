@@ -107,6 +107,7 @@ ENTRY(printk)
 ENTRY(sys_fork)
 ENTRY(sys_exec)
 ENTRY(sys_exit)
+ENTRY(sys_getpid)
 
 NUM_SYSCALLS = (. - sys_call_table) / 4
 
@@ -118,5 +119,8 @@ system_call:
 	movl $-ENOSYS, %eax
 	ret
 1:
+	movl $2f, (%esp)
 	jmp *sys_call_table(, %eax, 4)
-	ret
+2:
+	movl %eax, 40(%esp)	/* the syscall returned via ret, so eax is now at offset 40 */
+	jmp ret_from_interrupt

@@ -30,16 +30,24 @@ int exit(void)
 	return ret;
 }
 
+int getpid(void)
+{
+	int ret;
+	asm volatile ("int $0x30" : "=a"(ret) : "0" (4));
+	return ret;
+}
+
 int main(void)
 {
 	printk("haha\n");
 	printk2("%s\n%d\n%d\n", string, global_data, in_bss[5]);
+	printk2("before fork %d\n", getpid(), 0, 0);
 	int x = fork();
 	if (x == 0) {
-		printk("child\n");
+		printk2("child, getpid=%d\n", getpid(), 0, 0);
 		exit();
 	}
-	printk2("parent: x=%d\n", x, 0, 0);
+	printk2("parent: x=%d, getpid=%d\n", x, getpid(), 0);
 	while (1);
 	return 0;
 }

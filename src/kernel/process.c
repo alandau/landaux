@@ -257,3 +257,8 @@ int kernel_exec(const char *path)
 		: "=a" (ret) : "0" (2), "d" (path));
 	return ret;
 }
+
+int sys_getpid(void)
+{
+	return current->pid;
+}
