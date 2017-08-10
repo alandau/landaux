@@ -37,6 +37,13 @@ int getpid(void)
 	return ret;
 }
 
+int pause(void)
+{
+	int ret;
+	asm volatile ("int $0x30" : "=a"(ret) : "0" (5));
+	return ret;
+}
+
 int main(void)
 {
 	printk("haha\n");
@@ -48,6 +55,6 @@ int main(void)
 		exit();
 	}
 	printk2("parent: x=%d, getpid=%d\n", x, getpid(), 0);
-	while (1);
+	pause();
 	return 0;
 }

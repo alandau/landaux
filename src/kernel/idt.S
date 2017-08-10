@@ -108,6 +108,7 @@ ENTRY(sys_fork)
 ENTRY(sys_exec)
 ENTRY(sys_exit)
 ENTRY(sys_getpid)
+ENTRY(sys_pause)
 
 NUM_SYSCALLS = (. - sys_call_table) / 4
 
