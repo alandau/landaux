@@ -35,6 +35,7 @@ const char *cls_to_str(u16 cls) {
 		const char *str;
 	} subcls_mass_storage[] = {
 		{0x01, "IDE"},
+		{0x06, "SATA"},
 		{0, 0}
 	}, subcls_network[] = {
 		{0x00, "Ethernet"},
@@ -47,6 +48,10 @@ const char *cls_to_str(u16 cls) {
 		{0x01, "ISA"},
 		{0x80, "Other"},
 		{0, 0}
+	}, subcls_serial_bus[] = {
+		{0x03, "USB"},
+		{0x05, "SMBus"},
+		{0, 0}
 	};
 	static const struct {
 		u8 cls;
@@ -57,8 +62,9 @@ const char *cls_to_str(u16 cls) {
 		{0x02, "Network", subcls_network},
 		{0x03, "Display", subcls_display},
 		{0x06, "Bridge", subcls_bridge},
+		{0x0c, "Serial bus", subcls_serial_bus},
 	};
-	res[0] = '\0';
+	strcpy(res, "Unknown");
 	for (int i = 0; i < sizeof(classes)/sizeof(classes[0]); i++) {
 		if (classes[i].cls != (cls >> 8)) {
 			continue;

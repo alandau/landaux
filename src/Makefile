@@ -95,6 +95,6 @@ debug: qemu
 
 qemu: image
 	$(MAKE) -C ../usr
-	qemu-system-i386 -m 32 -kernel image.elf -initrd ../usr/initrd.tar $(QFLAGS)
+	qemu-system-i386 -M q35 -device nec-usb-xhci -m 32 -kernel image.elf -initrd ../usr/initrd.tar $(QFLAGS)
 
 include $(TOPDIR)/Rules.make
