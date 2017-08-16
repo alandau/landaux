@@ -35,6 +35,7 @@
 #define	PR_WS		0x020		/* PR_SG set and num was < 0 */
 #define	PR_LZ		0x040		/* Pad left with '0' instead of ' ' */
 #define	PR_FP		0x080		/* Pointers are far */
+#define PR_0x		0x200
 
 /* largest number handled is 2^64-1, lowest radix handled is 8.
  * 2^64-1 in base 8 has 22 digits (add 5 for trailing NUL and for slop) */
@@ -117,13 +118,15 @@ static int do_printf(const char *fmt, va_list args, int (*fn)(int c, void *ptr),
 				} else if(*fmt == 'N') {
 					break;
 				} else if(*fmt == 'l') {
+					flags |= PR_64;
+#if 0
 					if(flags & PR_32) {
 						flags |= PR_64;
 						flags &= ~PR_32;
 					} else if(!(flags & PR_64)) {
 						flags |= PR_32;
 					}
-
+#endif
 					break;
 				} else if(*fmt == 'L') {
 					flags |= PR_64;
@@ -148,9 +151,12 @@ static int do_printf(const char *fmt, va_list args, int (*fn)(int c, void *ptr),
 					/* FALL THROUGH */
 				/* xxx - far pointers (%Fp, %Fn) not yet supported */
 				case 'x':
-				case 'p':
 				case 'n':
 					radix = 16;
+					goto DO_NUM;
+				case 'p':
+					radix = 16;
+					flags |= PR_64;
 					goto DO_NUM;
 				case 'd':
 				case 'i':
@@ -164,9 +170,9 @@ static int do_printf(const char *fmt, va_list args, int (*fn)(int c, void *ptr),
 
 					/* Load the value to be printed. l=long=32 bits: */
 DO_NUM:					if(flags & PR_32) {
-						num = va_arg(args, unsigned long);
+						num = va_arg(args, unsigned int);
 					} else if(flags & PR_64) {
-						num = va_arg(args, unsigned long long);
+						num = va_arg(args, unsigned long);
 					} else if(flags & PR_16) {
 						/* h=short=16 bits (signed or unsigned) */
 						if(flags & PR_SG)
@@ -192,9 +198,9 @@ DO_NUM:					if(flags & PR_32) {
 
 					/* Convert binary to octal/decimal/hex ASCII */
 					do {
-						unsigned /*long*/ long temp;
+						unsigned long temp;
 						
-						temp = (unsigned /*long*/ long)num % radix;
+						temp = (unsigned long)num % radix;
 						where--;
 						if(temp < 10)
 							*where = temp + '0';
@@ -203,7 +209,7 @@ DO_NUM:					if(flags & PR_32) {
 						else
 							*where = temp - 10 + 'a';
 
-						num = (unsigned /*long*/ long)num / radix;
+						num = (unsigned long)num / radix;
 					} while(num != 0);
 
 					goto EMIT;
@@ -230,6 +236,15 @@ EMIT:
 					actual_wd = strlen((char *)where);
 					if(flags & PR_WS)
 						actual_wd++;
+
+					if (flags & PR_0x) {
+						if(fn('0', ptr) != 0)
+							return count;
+						count++;
+						if(fn('x', ptr) != 0)
+							return count;
+						count++;
+					}
 
 					/* If we pad left with ZEROES, do the
 					 * sign now */

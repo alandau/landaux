@@ -8,7 +8,7 @@
 #include <elf.h>
 
 task_stack_t idle_task_stack __attribute__ ((aligned (PAGE_SIZE)));
-tss_t tss __attribute__ ((aligned (PAGE_SIZE)));
+tss_t tss;
 task_t *idle;
 static int next_free_pid;
 
@@ -16,9 +16,8 @@ static int next_free_pid;
 void init_idle(void)
 {
 	idle = &idle_task_stack.task;
-	memset(idle, 0, sizeof(task_t));
-	extern pte_t page_dir[];
-	idle->mm.page_dir = page_dir;
+	extern pte_t page_table_l4[];
+	idle->mm.page_dir = P2V(V2P_IMAGE((u64)page_table_l4));
 	list_init(&idle->mm.vm_areas);
 	idle->pid = 0;
 	idle->state = TASK_RUNNING;
@@ -31,15 +30,22 @@ void init_idle(void)
 
 void init_tss(void)
 {
-	memset(&tss, 0, sizeof(tss));
-	tss.ss0 = KERNEL_DS;
-	tss.esp0 = (u32)(&idle_task_stack + 1);
+	extern unsigned char gdt[];
+	void *e = (u8 *)&gdt + TSS_SELECTOR;
+	*(u16 *)(e + 0) = sizeof(tss_t) - 1;
+	*(u16 *)(e + 2) = (u64)&tss & 0xffff;
+	*(u8 *)(e + 4) = ((u64)&tss >> 16) & 0xff;
+	*(u8 *)(e + 5) = 0x89;
+	*(u8 *)(e + 6) = 0;
+	*(u8 *)(e + 7) = ((u64)&tss >> 24) & 0xff;
+	*(u32 *)(e + 8) = (u64)&tss >> 32;
+	tss.rsp0 = (u64)(&idle_task_stack + 1);
 	__asm__ __volatile__ ("ltrw %%ax" : /* no output */ : "a" (TSS_SELECTOR));
 }
 
 int sys_fork(void)
 {
-	extern char ret_from_interrupt[];
+	void ret_from_fork(void);
 
 	task_t *p = alloc_page(MAP_READWRITE);
 	*p = *current;
@@ -53,9 +59,9 @@ int sys_fork(void)
 	regs_t *parent_regs = (regs_t *)((task_stack_t *)current + 1) - 1;
 	regs_t *child_regs = (regs_t *)((task_stack_t *)p + 1) - 1;
 	*child_regs = *parent_regs;
-	child_regs->eax = 0;	// son returns 0
-	p->regs.eip = (u32)ret_from_interrupt;
-	p->regs.esp = (u32)child_regs;
+	child_regs->rax = 0;	// son returns 0
+	p->regs.rip = (u64)ret_from_fork;
+	p->regs.rsp = (u64)child_regs;
 	return p->pid;
 out:
 	free_page(p);
@@ -64,6 +70,7 @@ out:
 
 int kernel_thread(void (*fn)(void *data), void *data)
 {
+	extern char kernel_thread_start[];
 	task_t *p = alloc_page(MAP_READWRITE);
 	*p = *idle;
 	p->pid = next_free_pid++;
@@ -72,10 +79,14 @@ int kernel_thread(void (*fn)(void *data), void *data)
 	list_add(&idle->running, &p->running);
 	list_init(&p->mm.vm_areas);
 	p->timeslice = 10;
-	p->regs.eip = (u32)fn;
-	p->regs.esp = (u32)((char *)p + sizeof(task_stack_t));
-	*(u32 *)(p->regs.esp -= 4) = (u32)data;
-	*(u32 *)(p->regs.esp -= 4) = 0;	//guard against function exit
+	p->regs.rip = (u64)kernel_thread_start;
+	p->regs.rsp = (u64)((char *)p + sizeof(task_stack_t) - sizeof(regs_t));
+	if (sizeof(regs_t) % 16 == 0) {
+		*(u64 *)(p->regs.rsp -= 8) = 0;	// align stack on 16-byte boundary
+	}
+	*(u64 *)(p->regs.rsp -= 8) = 0xffffffffffff1234;	// guard against function exit
+	*(u64 *)(p->regs.rsp -= 8) = (u64)fn;
+	*(u64 *)(p->regs.rsp -= 8) = (u64)data;
 	return p->pid;
 }
 
@@ -95,14 +106,17 @@ int sys_exit(void)
 void free_task(task_t *p)
 {
 	list_del(&p->tasks);
+	u64 cr3;
+	asm ("mov %%cr3, %0" : "=a"(cr3));
+	
 	free_page(p->mm.page_dir);
 	free_page(p);
 }
 
-#define STACK_START	KERNEL_VIRT_ADDR
+#define STACK_START	MEM_BOTTOM_HALF
 #define STACK_SIZE	PAGE_SIZE
 
-static u32 elf_flags_to_mmap_prot(Elf32_Word flags)
+static u32 elf_flags_to_mmap_prot(Elf64_Word flags)
 {
 	u32 ret = 0;
 	if (flags & PF_R) ret |= PROT_READ;
@@ -114,13 +128,12 @@ static u32 elf_flags_to_mmap_prot(Elf32_Word flags)
 static int do_exec_elf(const char *path)
 {
 	int ret;
-	printk("do_exec_elf: path=<%s>\n", path);
 	file_t *f = vfs_open(path, O_RDONLY);
 	if (IS_ERR(f)) {
 		printk("do_exec_elf: Can't open file '%s' (%d)\n", path, PTR_ERR(f));
 		return PTR_ERR(f);
 	}
-	Elf_Ehdr ehdr;
+	Elf64_Ehdr ehdr;
 	ret = vfs_read(f, &ehdr, sizeof(ehdr));
 	if (ret < 0) {
 		vfs_close(f);
@@ -132,21 +145,21 @@ static int do_exec_elf(const char *path)
 		printk("do_exec_elf: Can't read full ELF header '%s' (%d)\n", path, ret);
 		return -ENOEXEC;
 	}
-	if (memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0 || ehdr.e_ident[EI_CLASS] != ELFCLASS32 ||
+	if (memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0 || ehdr.e_ident[EI_CLASS] != ELFCLASS64 ||
 			ehdr.e_ident[EI_DATA] != ELFDATA2LSB || ehdr.e_ident[EI_VERSION] != EV_CURRENT) {
 		vfs_close(f);
 		printk("do_exec_elf: Not an ELF file '%s'\n", path);
 		return -ENOEXEC;
 	}
-	if (ehdr.e_type != ET_EXEC || ehdr.e_machine != EM_386 || ehdr.e_version != EV_CURRENT || ehdr.e_phoff == 0) {
+	if (ehdr.e_type != ET_EXEC || ehdr.e_machine != EM_X86_64 || ehdr.e_version != EV_CURRENT || ehdr.e_phoff == 0) {
 		vfs_close(f);
-		printk("do_exec_elf: Not an x86 executable ELF file '%s'\n", path);
+		printk("do_exec_elf: Not an x86-64 executable ELF file '%s'\n", path);
 		return -ENOEXEC;
 	}
 	int i;
-	Elf32_Word stack_flags = PF_R | PF_W | PF_X;
+	Elf64_Word stack_flags = PF_R | PF_W | PF_X;
 	for (i = 0; i < ehdr.e_phnum; i++) {
-		Elf_Phdr phdr;
+		Elf64_Phdr phdr;
 		ret = vfs_lseek(f, ehdr.e_phoff + i*sizeof(phdr), SEEK_SET);
 		if (ret < 0) {
 			vfs_close(f);
@@ -190,11 +203,11 @@ static int do_exec_elf(const char *path)
 				return -ENOEXEC;
 			}
 			u32 file_offset = phdr.p_offset - offset_in_page;
-			u32 virt_addr = phdr.p_vaddr - offset_in_page;
+			u64 virt_addr = phdr.p_vaddr - offset_in_page;
 			u32 read_size = phdr.p_filesz + offset_in_page;
 			u32 mem_size = phdr.p_memsz + offset_in_page;
-			if (virt_addr > KERNEL_VIRT_ADDR) {
-				printk("do_exec_elf: Bad virt addr 0x%x in segment %d '%s' (%d)\n", virt_addr, i, path);
+			if (virt_addr > MEM_BOTTOM_HALF) {
+				printk("do_exec_elf: Bad virt addr %p in segment %d '%s' (%d)\n", virt_addr, i, path);
 				return -ENOEXEC;
 			}
 			u32 prot = elf_flags_to_mmap_prot(phdr.p_flags);
@@ -231,31 +244,40 @@ static int do_exec_elf(const char *path)
 	}
 
 	regs_t *r = (regs_t *)((task_stack_t *)current + 1) - 1;
-	r->eax = r->ebx = r->ecx = r->edx = r->esi = r->edi = r->ebp = 0;
+	r->rax = r->rbx = r->rcx = r->rdx = r->rsi = r->rdi = r->rbp = 0;
+	r->r8 = r->r9 = r->r10 = r->r11 = r->r12 = r->r13 = r->r14 = r->r15 = 0;
 	r->cs = USER_CS;
-	r->ds = r->es = r->fs = r->gs = r->ss = USER_DS;
-	r->eip = ehdr.e_entry;
-	r->esp = STACK_START;
-	r->eflags = (1<<9) | (1<<1);	// 9 is IF, 1 is always on
-	printk("do_exec: success\n");
+	r->ss = USER_DS;
+	r->rip = ehdr.e_entry;
+	r->rsp = STACK_START;
+	r->rflags = (1<<9) | (1<<1);	// 9 is IF, 1 is always on
 	return 0;
 }
 
 int sys_exec(const char *path)
 {
-	return do_exec_elf(path);
+	char *p = kmalloc(strlen(path) + 1);
+	strcpy(p, path);
+	free_mm();
+	memset(current->mm.page_dir, 0, ((MEM_BOTTOM_HALF >> 39) & 0x1ff) * sizeof(pte_t));
+	int ret = do_exec_elf(p);
+	kfree(p);
+	return ret;
 }
 
 int kernel_exec(const char *path)
 {
-	int ret;
-	/* setup the stack as if ss and esp were pushed and call exec() via a syscall */
+	int ret = do_exec_elf(path);
+	if (ret) {
+		return ret;
+	}
+	/* setup rsp and return as if from interrupt */
 	__asm__ __volatile__ (
-		"orl $" STR(PAGE_SIZE-1) ", %%esp\n\t"
-		"subl $7, %%esp\n\t"
-		"int $0x30"
-		: "=a" (ret) : "0" (2), "d" (path));
-	return ret;
+		"or %0, %%rsp\n\t"
+		"sub %1, %%rsp\n\t"
+		"jmp ret_from_interrupt"
+		: /* no output */ : "i" (PAGE_SIZE-1), "i" (sizeof(regs_t)-1));
+	return 0;
 }
 
 int sys_getpid(void)
@@ -266,6 +288,12 @@ int sys_getpid(void)
 int sys_pause(void)
 {
 	list_del(&current->running);
+	set_need_resched();
+	return 0;
+}
+
+int sys_yield(void)
+{
 	set_need_resched();
 	return 0;
 }

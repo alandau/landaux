@@ -16,3 +16,6 @@ landaux_start.o
 *lib:
 
 
+*ssp_default:
+
+

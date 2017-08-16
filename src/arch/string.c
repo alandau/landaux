@@ -2,9 +2,8 @@
 
 void *memcpy(void *dest, const void *src, u32 count)
 {
-	u32 tmp1, tmp2, tmp3;
+	u64 tmp1, tmp2, tmp3;
 	__asm__ __volatile__ (
-		"cld\n\t"
 		"rep\n\t"
 		"movsb"
 		: "=&c" (tmp1), "=&D" (tmp2), "=&S" (tmp3)
@@ -15,11 +14,10 @@ void *memcpy(void *dest, const void *src, u32 count)
 
 void *memmove(void *dest, const void *src, u32 count)
 {
-	u32 tmp1, tmp2, tmp3;
+	u64 tmp1, tmp2, tmp3;
 	if (dest < src)
 	{
 		__asm__ __volatile__ (
-			"cld\n\t"
 			"rep\n\t"
 			"movsb"
 			: "=&c" (tmp1), "=&D" (tmp2), "=&S" (tmp3)
@@ -31,7 +29,8 @@ void *memmove(void *dest, const void *src, u32 count)
 		__asm__ __volatile__ (
 			"std\n\t"
 			"rep\n\t"
-			"movsb"
+			"movsb\n\t"
+			"cld"
 			: "=&c" (tmp1), "=&D" (tmp2), "=&S" (tmp3)
 			: "0" (count), "1" ((char *)dest + count-1), "2" ((const char *)src + count-1)
 			: "memory");
@@ -41,9 +40,8 @@ void *memmove(void *dest, const void *src, u32 count)
 
 void *memset(void *dest, int value, u32 count)
 {
-	u32 tmp1, tmp2;
+	u64 tmp1, tmp2;
 	__asm__ __volatile__ (
-		"cld\n\t"
 		"rep\n\t"
 		"stosb"
 		: "=&c" (tmp1), "=&D" (tmp2)
@@ -54,9 +52,8 @@ void *memset(void *dest, int value, u32 count)
 
 void *memset16(void *dest, u16 value, u32 count)
 {
-	u32 tmp1, tmp2;
+	u64 tmp1, tmp2;
 	__asm__ __volatile__ (
-		"cld\n\t"
 		"rep\n\t"
 		"stosw"
 		: "=&c" (tmp1), "=&D" (tmp2)
@@ -67,9 +64,8 @@ void *memset16(void *dest, u16 value, u32 count)
 
 void *memset32(void *dest, u32 value, u32 count)
 {
-	u32 tmp1, tmp2;
+	u64 tmp1, tmp2;
 	__asm__ __volatile__ (
-		"cld\n\t"
 		"rep\n\t"
 		"stosl"
 		: "=&c" (tmp1), "=&D" (tmp2)
@@ -80,9 +76,8 @@ void *memset32(void *dest, u32 value, u32 count)
 
 void *strcpy(char *dest, const char *src)
 {
-	int tmp1, tmp2, tmp3;
+	u64 tmp1, tmp2, tmp3;
 	__asm__ __volatile__ (
-		"cld\n\t"
 		"1:\tlodsb\n\t"
 		"stosb\n\t"
 		"testb %%al, %%al\n\t"
@@ -93,16 +88,16 @@ void *strcpy(char *dest, const char *src)
 	return dest;
 }
 
-unsigned long strlen(const char *s)
+u32 strlen(const char *s)
 {
 	int tmp;
 	register unsigned long res;
 	__asm__ __volatile__ (
-		"cld\n\t"
 		"repnz\n\t"
 		"scasb\n\t"
-		"notl %0\n\t"
-		"decl %0"
+		"not %0\n\t"
+		"dec %0\n\t"
+		"movl %%ecx, %%ecx"
 		: "=c" (res), "=&D" (tmp)
 		: "0" (0xFFFFFFFF), "1" (s), "a" (0));
 	return res;

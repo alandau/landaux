@@ -16,11 +16,13 @@ ifndef D
 OPT_CFLAGS = -O2
 endif
 
-CC=gcc -m32
-AS=gcc -m32
-LD=ld -m elf_i386
+CC=gcc
+AS=gcc
+LD=ld
 INCLUDE=$(TOPDIR)/include
-CFLAGS := -I$(INCLUDE) -finline-functions -fno-stack-protector -fno-builtin -nostdinc -Wall -Wstrict-prototypes -fno-omit-frame-pointer -g $(OPT_CFLAGS)
+CFLAGS := -I$(INCLUDE) -finline-functions -fno-stack-protector -fno-builtin -nostdinc -Wall \
+	  -Wstrict-prototypes -fno-omit-frame-pointer -fno-common -mcmodel=kernel -fno-pie -g \
+	  -mno-red-zone $(OPT_CFLAGS)
 ASFLAGS:= -DASM -I$(INCLUDE) -g
 LDFLAGS:= -g
 
@@ -54,20 +56,18 @@ image: dep scripts version
 
 link:
 	echo "Linking kernel image..."
-	$(LD) -o image.elf -T script.ld $(OBJS)
-	nm image.elf | sort | scripts/syms > ksyms.c
+	$(LD) -o image.unstripped -T script.ld -z max-page-size=0x1000 $(OBJS)
+	nm image.unstripped | sort | scripts/syms > ksyms.c
 	$(CC) $(CFLAGS) -c ksyms.c -o ksyms.o
-	$(LD) -o image.elf -T script.ld $(OBJS) ksyms.o
-	nm image.elf | sort | scripts/syms > ksyms.c
+	$(LD) -o image.unstripped -T script.ld -z max-page-size=0x1000 $(OBJS) ksyms.o
+	nm image.unstripped | sort | scripts/syms > ksyms.c
 	$(CC) $(CFLAGS) -c ksyms.c -o ksyms.o
-	$(LD) -o image.elf -T script.ld -g $(OBJS) ksyms.o
-	nm image.elf | sort > system.map
+	$(LD) -o image.unstripped -T script.ld -g -z max-page-size=0x1000 $(OBJS) ksyms.o
+	nm image.unstripped | sort > system.map
 	rm -f ksyms.c ksyms.o
-	strip image.elf -o image.stripped
-	gzip -cf -9 image.stripped > image.gz
-	rm image.stripped
+	strip image.unstripped -o image.elf
+	wc -c image.unstripped
 	wc -c image.elf
-	wc -c image.gz
 	echo Build: `cat .build`
 
 scripts:
@@ -80,21 +80,13 @@ clean:
 	find . -name '*.o' -o -name '.depend' | xargs rm -f
 
 tags:
-	ctags -R
-
-install: image
-	sudo mount -t vfat -o loop,uid=1000,gid=1000 ../bochs/floppya.img ../bochs/mnt
-	cp image.gz ../bochs/mnt/landaux.gz
-	sudo umount ../bochs/mnt
-
-bochs: install
-	-cd ../bochs && bochs -q
+	ctags -R --extra=+f
 
 debug: QFLAGS=-s -S
 debug: qemu
 
 qemu: image
 	$(MAKE) -C ../usr
-	qemu-system-i386 -M q35 -device nec-usb-xhci -m 32 -kernel image.elf -initrd ../usr/initrd.tar $(QFLAGS)
+	qemu-system-x86_64 -M q35 -device nec-usb-xhci -m 32 -kernel image.elf -initrd ../usr/initrd.tar $(QFLAGS)
 
 include $(TOPDIR)/Rules.make

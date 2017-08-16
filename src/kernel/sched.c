@@ -3,13 +3,10 @@
 #include <process.h>
 #include <mm.h>
 
-volatile u32 global_flags;
+volatile u64 global_flags;
 
 void scheduler_tick(void)
 {
-	u32 flags;
-	asm ("pushfl;popl %0": "=r"(flags));
-	if (flags & (1<<14)) printk("NT is set\nNT is set\nNT is set\n");
 	task_t *p = current;
 	if (!--p->timeslice)
 	{
@@ -20,13 +17,11 @@ void scheduler_tick(void)
 
 extern tss_t tss;
 
-/*
- * context_switch_tail() is regparm(2), which means that prev is in %eax,
- * and next is in %edx.
- */
-void __attribute__((regparm(2))) context_switch_tail(task_t *prev, task_t *next)
+void context_switch_tail(task_t *prev, task_t *next)
 {
-	tss.esp0 = (u32)next + sizeof(task_stack_t);
+	extern u64 swapgs_kernel_rsp;
+	tss.rsp0 = (u64)next + sizeof(task_stack_t);
+	swapgs_kernel_rsp = tss.rsp0;
 	if (prev->state == TASK_ZOMBIE) {
 		free_task(prev);
 	}
@@ -34,29 +29,37 @@ void __attribute__((regparm(2))) context_switch_tail(task_t *prev, task_t *next)
 
 #define context_switch(prev, next, flags) do {		\
 	__asm__ __volatile__ (				\
-		"pushl %%ebp\n\t"			\
-		"pushl %%ebx\n\t"			\
-		"movl %%esp, %0\n\t"			\
-		"movl %2, %%esp\n\t"			\
-		"movl $1f, %1\n\t"			\
-		"movl %4, %%cr3\n\t"			\
-		"pushl %3\n\t"				\
+		"push %5\n\t"				\
+		"push %%rbp\n\t"			\
+		"push %%rbx\n\t"			\
+		"push %%r12\n\t"			\
+		"push %%r13\n\t"			\
+		"push %%r14\n\t"			\
+		"push %%r15\n\t"			\
+		"mov %%rsp, %0\n\t"			\
+		"mov %2, %%rsp\n\t"			\
+		"movq $1f, %1\n\t"			\
+		"mov %4, %%cr3\n\t"			\
+		"push %3\n\t"				\
 		"jmp context_switch_tail\n\t"		\
 		"1:\n\t"				\
-		"popl %%ebx\n\t"			\
-		"popl %%ebp\n\t"			\
-		"pushl %5\n\t"				\
-		"popfl\n\t"				\
-		: "=m"(prev->regs.esp), "=m"(prev->regs.eip)	\
-		: "S"(next->regs.esp), "D"(next->regs.eip), "c"(get_task_cr3(&next->mm)), \
-		  "m"(flags), "a"(prev), "d"(next)	\
+		"pop %%r15\n\t"				\
+		"pop %%r14\n\t"				\
+		"pop %%r13\n\t"				\
+		"pop %%r12\n\t"				\
+		"pop %%rbx\n\t"				\
+		"pop %%rbp\n\t"				\
+		"popf\n\t"				\
+		: "=m"(prev->regs.rsp), "=m"(prev->regs.rip)	\
+		: "m"(next->regs.rsp), "m"(next->regs.rip), "a"(get_task_cr3(&next->mm)), \
+		  "d"(flags), "D"(prev), "S"(next)	\
 		: "memory"				\
 		);					\
 	} while (0)
 
 void schedule(void)
 {
-	u32 flags = save_flags_irq();
+	u64 flags = save_flags_irq();
 	task_t *prev = current;
 	task_t *next = list_get(prev->running.next, task_t, running);
 	if (prev->state == TASK_ZOMBIE) {

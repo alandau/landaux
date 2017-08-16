@@ -1,7 +1,6 @@
 #include <mm.h>
 #include <kernel.h>
-
-#define HEAP_START 0xE0000000
+#include <string.h>
 
 static u8 *heap_top;
 
@@ -12,21 +11,19 @@ typedef struct node {
 
 void init_heap(void)
 {
-	u32 frame;
-	node_t *n;
-	heap_top = (void *)HEAP_START;
-	frame = alloc_phys_page();
+	u64 frame = alloc_phys_page();
 	BUG_ON(frame == 0);
-	map_kernel_page(frame, (u32)heap_top);
+	heap_top = (void *)HEAP_START;
+	map_kernel_page(frame, (u64)heap_top);
 	heap_top += PAGE_SIZE;
-	n = (node_t *)HEAP_START;
+	node_t *n = (node_t *)HEAP_START;
 	n->size = PAGE_SIZE - sizeof(node_t);
 }
 
 void *kmalloc(u32 size)
 {
 	node_t *n = (node_t *)HEAP_START, *last_free_node = NULL;
-	size = (size + 3) / 4 * 4;	/* align to 4 bytes */
+	size = (size + 7) / 8 * 8;	/* align to 8 bytes */
 	while (1) {
 		if ((u8 *)n >= heap_top) {
 			u32 frame;
@@ -37,7 +34,7 @@ void *kmalloc(u32 size)
 				print_stack(NULL);
 				return NULL;
 			}
-			map_kernel_page(frame, (u32)heap_top);
+			map_kernel_page(frame, (u64)heap_top);
 			heap_top += PAGE_SIZE;
 			if (last_free_node) {
 				last_free_node->size += PAGE_SIZE;
@@ -48,7 +45,7 @@ void *kmalloc(u32 size)
 			continue;
 		}
 		if (n->size & 1) {	/* used */
-			n = (node_t *)((u32)n + sizeof(node_t) + (n->size & ~1));
+			n = (node_t *)((u64)n + sizeof(node_t) + (n->size & ~1));
 			last_free_node = NULL;
 			continue;
 		}
@@ -63,8 +60,8 @@ void *kmalloc(u32 size)
 			u32 increase = 0;
 			node_t *next_node = n; 
 			while (1) {
-				next_node = (node_t *)((u32)next_node + sizeof(node_t) + next_node->size);
-				if ((u32)next_node < (u32)heap_top && (next_node->size & 1) == 0)
+				next_node = (node_t *)((u64)next_node + sizeof(node_t) + next_node->size);
+				if ((u64)next_node < (u64)heap_top && (next_node->size & 1) == 0)
 					increase += sizeof(node_t) + next_node->size;
 				else
 					break;
@@ -74,7 +71,7 @@ void *kmalloc(u32 size)
 				continue;
 			}
 			last_free_node = n;
-			n = (node_t *)((u32)n + sizeof(node_t) + n->size);
+			n = (node_t *)((u64)n + sizeof(node_t) + n->size);
 			continue;
 		}
 	}
@@ -85,12 +82,13 @@ void kfree(void *p)
 	node_t *next_node;
 	if (p == NULL)
 		return;
-	node_t *node = (node_t *)((u32)p - sizeof(node_t));
+	node_t *node = (node_t *)((u64)p - sizeof(node_t));
+	BUG_ON((node->size & 1) == 0);
 	node->size &= ~1;	/* mark as free */
 	while (1) {
-		next_node = (node_t *)((u32)node + sizeof(node_t) + node->size);
+		next_node = (node_t *)((u64)node + sizeof(node_t) + node->size);
 		/* if next node exists and is free, merge them */
-		if ((u32)next_node < (u32)heap_top && (next_node->size & 1) == 0)
+		if ((u64)next_node < (u64)heap_top && (next_node->size & 1) == 0)
 			node->size += sizeof(node_t) + next_node->size;
 		else
 			break;

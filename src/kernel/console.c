@@ -5,7 +5,7 @@
 #include <mem.h>
 
 static u16 cursor = 0;
-static char *screen = (char *)P2V(0xB8000);
+static char *screen = (char *)P2V_IMAGE(0xB8000);
 static u8 color = 0x07;
 
 void init_console(void)

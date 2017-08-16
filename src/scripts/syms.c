@@ -15,10 +15,10 @@ int main(int argc, void *argv[])
 	symbol_t sym;
 
 	printf("#include <syms.h>\n\n");
-	printf("symbol_t __ksymtab[] __attribute__ ((section (\".ksymtab\")))={\n");
-	while (scanf("%X %c %s", &sym.address, &sym.type, sym.symbol) != EOF)
+	printf("const symbol_t __ksymtab[] __attribute__ ((section (\".ksymtab\")))={\n");
+	while (scanf("%lX %c %s", &sym.address, &sym.type, sym.symbol) != EOF)
 	{
-		printf("\t{0x%08X, '%c', \"%s\"},\n", sym.address, sym.type, sym.symbol);
+		printf("\t{0x%lx, '%c', \"%s\"},\n", sym.address, sym.type, sym.symbol);
 	}
 	printf("\t{0, 0, \"\"}\n");
 	printf("};\n");

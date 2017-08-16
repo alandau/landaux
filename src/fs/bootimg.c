@@ -104,7 +104,7 @@ static s32 tar_atol(const char *p, unsigned char_cnt) {
         return tar_atol8(p, char_cnt);
 }
 
-int extract_tar(u32 tar_start, u32 tar_size)
+int extract_tar(void *tar_start, u32 tar_size)
 {
 	if (tar_size < sizeof(tar_header_t))
 		return -EINVAL;
@@ -112,7 +112,7 @@ int extract_tar(u32 tar_start, u32 tar_size)
 	tar_header_t *h = (tar_header_t *)p;
 	if (memcmp(h->magic, "ustar", 5) != 0)
 		return -EINVAL;
-	while ((u32)p < tar_start + tar_size) {
+	while ((u64)p < (u64)tar_start + tar_size) {
 		int ret;
 		u32 size;
 		file_t *f;

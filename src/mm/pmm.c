@@ -2,22 +2,21 @@
 #include <string.h>
 #include <kernel.h>
 
-static u32 *bitmap;
-static u32 first_frame;
-static u32 bitmap_size;			/* in bytes */
-static u32 memsize, memused;		/* in pages */
+static u64 *bitmap;
+static u64 first_frame;
+static u64 bitmap_size;			/* in bytes */
+static u64 memsize, memused;		/* in bytes */
 
-void init_pmm(u32 base, u32 size)
+void init_pmm(u64 physbase, u64 size)
 {
 	int i;
 
 	/* base and size are in bytes */
-	BUG_ON((base & ~PAGE_MASK) != 0);
+	BUG_ON((physbase & ~PAGE_MASK) != 0);
 	BUG_ON((size & ~PAGE_MASK) != 0);
 
-	bitmap = (u32 *)P2V(base);
-	first_frame = base >> PAGE_SHIFT;
-	BUG_ON(first_frame*PAGE_SIZE >= 4*1024*1024);	/* bitmap should be mapped by first 4MB */
+	bitmap = (u64 *)P2V(physbase);
+	first_frame = physbase >> PAGE_SHIFT;
 
 	memsize = size;
 	bitmap_size = (memsize >> PAGE_SHIFT) / 8;
@@ -30,17 +29,18 @@ void init_pmm(u32 base, u32 size)
 		u32 frame = alloc_phys_page();
 		BUG_ON(frame != first_frame + i);
 	}
-	printk("bitmap=%x\nbitmap_size=%d\nfirst_frame=%d\nmemsize=%d\nmemused=%d\n", bitmap, bitmap_size, first_frame, memsize, memused);
+	printk("bitmap=%p\nbitmap_size=%ld\nfirst_frame=%ld\nmemsize=%ld\nmemused=%ld\n", bitmap, bitmap_size, first_frame, memsize, memused);
 }
 
 /* returns frame number of allocated frame */
-u32 alloc_phys_page(void)
+u64 alloc_phys_page(void)
 {
-	int i, bit = 1, bit_offs = 0;
-	for (i = 0; i < bitmap_size/4; i++) {
-		if (bitmap[i] != 0xFFFFFFFF) break;
+	u64 i;
+	u64 bit = 1, bit_offs = 0;
+	for (i = 0; i < bitmap_size/8; i++) {
+		if (bitmap[i] != -1UL) break;
 	}
-	if (i == bitmap_size/4) return 0;	/* no free memory */
+	if (i == bitmap_size/8) return 0;	/* no free memory */
 	/* not an endless loop, since free space exists */
 	while (bitmap[i] & bit)	{
 		bit <<= 1;
@@ -48,7 +48,7 @@ u32 alloc_phys_page(void)
 	}
 	bitmap[i] |= bit;			/* mark it as used */
 	memused += PAGE_SIZE;
-	u32 frame = first_frame + i*32 + bit_offs;	/* 32 == bits in long */
+	u64 frame = first_frame + i*64 + bit_offs;	/* 64 == bits in long */
 	if (pages) {
 		page_t *page = &pages[frame];
 		BUG_ON(page->count > 0);
@@ -58,15 +58,14 @@ u32 alloc_phys_page(void)
 }
 
 /* frees frame by number */
-void free_phys_page(u32 frame)
+void free_phys_page(u64 frame)
 {
-	int bit_offs, bit, i;
-	u32 orig_frame = frame;
+	u64 i, bit;
+	u64 orig_frame = frame;
 	frame -= first_frame;
-	i = frame / 32;				/* 32 == bits in long */
-	BUG_ON(i >= bitmap_size);
-	bit_offs = frame % 32;
-	bit = 1 << bit_offs;
+	BUG_ON(frame/8 >= bitmap_size);
+	i = frame / 64;				/* 64 == bits in long */
+	bit = 1UL << (frame % 64);
 	BUG_ON((bitmap[i] & bit) == 0);		/* page is free */
 	bitmap[i] &= ~bit;
 	memused -= PAGE_SIZE;
@@ -75,17 +74,17 @@ void free_phys_page(u32 frame)
 	page->count = 0;
 }
 
-u32 get_mem_size(void)
+u64 get_mem_size(void)
 {
 	return memsize;
 }
 
-u32 get_used_mem(void)
+u64 get_used_mem(void)
 {
 	return memused;
 }
 
-u32 get_free_mem(void)
+u64 get_free_mem(void)
 {
 	return memsize - memused;
 }

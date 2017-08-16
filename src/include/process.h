@@ -11,8 +11,8 @@
 #define TASK_ZOMBIE			3
 
 typedef struct {
-	u32 esp;
-	u32 eip;
+	u64 rsp;
+	u64 rip;
 } switch_regs_t;
 
 typedef struct task_struct
@@ -35,32 +35,21 @@ typedef union {
 } task_stack_t;
 typedef int BUG_task_stack_t_is_not_page_sized[sizeof(task_stack_t) == PAGE_SIZE ? 1 : -1];
 
-#define current ((task_t *)(get_esp() & ~(sizeof(task_stack_t)-1)))
+#define current ((task_t *)(get_rsp() & ~(sizeof(task_stack_t)-1)))
 
 extern task_t *idle;
 
 #define for_each_task(p) list_for_each(idle->processes, task_t, tasks)
 
 typedef struct {
-	u16 back_link, __back_link;
-	u32 esp0;
-	u16 ss0, __ss0;
-	u32 esp1;
-	u16 ss1, __ss1;
-	u32 esp2;
-	u16 ss2, __ss2;
-	u32 cr3;
-	u32 eip;
-	u32 eflags;
-	u32 eax, ecx, edx, ebx, esp, ebp, esi, edi;
-	u16 es, __es;
-	u16 cs, __cs;
-	u16 ss, __ss;
-	u16 ds, __ds;
-	u16 fs, __fs;
-	u16 gs, __gs;
-	u16 ldt, __ldt;
-	u16 trap;
+	u32 reserved1;
+	u64 rsp0;
+	u64 rsp1;
+	u64 rsp2;
+	u64 reserved2;
+	u64 ist[7];
+	u64 reserved3;
+	u16 reserved4;
 	u16 io_map_base;
 } __attribute__((packed)) tss_t;
 

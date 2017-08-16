@@ -14,19 +14,19 @@ typedef struct
 
 static irq_t irqs[16];
 
-void do_irq(regs_t r)
+void do_irq(regs_t *r)
 {
-	if (irqs[r.intnum].handler)
+	if (irqs[r->vector - 32].handler)
 	{
-		irq_t *irq = &irqs[r.intnum];
+		irq_t *irq = &irqs[r->vector - 32];
 		(irq->handler)(irq->data);
 		irq->count++;
-		if (r.intnum < 8) ack_master_pic();
+		if (r->vector - 32 < 8) ack_master_pic();
 		else ack_slave_pic();
 	}
 	else
 	{
-		printk("Unregistered IRQ #%d\n", r.intnum);
+		printk("Unregistered IRQ #%d\n", r->vector - 32);
 		BUG();
 	}
 }
@@ -35,7 +35,7 @@ int register_irq(int irq, irqhandler_t handler, void *data)
 {
 	u32 flags;
 	if (irqs[irq].handler) return -1;
-	flags = save_flags();
+	flags = save_flags_irq();
 	irqs[irq].data = data;
 	irqs[irq].count = 0;
 	irqs[irq].handler = handler;
@@ -64,15 +64,16 @@ void do_timer(void *data)
 
 void do_keyboard(void *data)
 {
+
 	u8 key = inb(0x60);
-//	printk("keyboard: %s - %d\n", key&0x80?"RELEASED":"PRESSED ",key&0x7F);
+	//printk("keyboard: %s - %d\n", key&0x80?"RELEASED":"PRESSED ",key&0x7F);
 	if (key & 0x80) {
 		u32 get_used_mem(void);
 		static u32 size = 1;
 		void *p = kmalloc(size);
-		printk("Allocated %d bytes at %x, memused=%d\n", size, p, get_used_mem());
+		printk("Allocated %d bytes at %p, memused=%ld\n", size, p, get_used_mem());
 		kfree(p);
-		printk("Freed %d bytes at %x, memused=%d\n", size, p, get_used_mem());
+		printk("Freed %d bytes at %p, memused=%ld\n", size, p, get_used_mem());
 		size *= 2;
 	}
 }

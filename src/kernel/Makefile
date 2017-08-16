@@ -1,1 +1,1 @@
-OBJS += setup.o main.o idt.o console.o printf.o interrupt.o irq.o syms.o debug.o process.o sched.o
+OBJS += setup.o main.o process.o console.o printf.o idt.o interrupt.o irq.o syms.o debug.o sched.o
