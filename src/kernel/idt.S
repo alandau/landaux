@@ -74,10 +74,17 @@ mov %rsp, %rdi
 call do_vector
 .global ret_from_interrupt
 ret_from_interrupt:
+/* if (need_resched && (returning_to_user || current == idle)) schedule(); */
 bt $FLAG_NEED_RESCHED, global_flags
 jnc 1f
 cmpq $USER_CS, 72(%rsp)
+je 2f
+mov %rsp, %rax
+and $~0xfff, %rax
+.extern idle
+cmp %rax, idle
 jne 1f
+2:
 call schedule
 1:
 POP_REGS
@@ -155,5 +162,6 @@ ENTRY(sys_exit)
 ENTRY(sys_getpid)
 ENTRY(sys_pause)
 ENTRY(sys_yield)
+ENTRY(sys_usleep)
 
 NUM_SYSCALLS = (. - sys_call_table) / 8

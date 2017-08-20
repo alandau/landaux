@@ -239,6 +239,8 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	init_idle();
 	init_heap();
 	init_mm((mbi->mem_upper+1024) * 1024);
+	void init_scheduler(void);
+	init_scheduler();
 	init_pic();
 	init_pit();
 	void do_keyboard(void *);

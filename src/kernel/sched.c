@@ -4,9 +4,36 @@
 #include <mm.h>
 
 volatile u64 global_flags;
+extern volatile u64 jiffies;
+
+typedef struct {
+	u64 time;
+	task_t *task;
+	list_t sleepq;
+} timer_waitq_t;
+
+timer_waitq_t timerq;
+
+void init_scheduler(void) {
+	list_init(&timerq.sleepq);
+}
 
 void scheduler_tick(void)
 {
+	u64 now = jiffies;
+	list_t *it;
+	list_for_each(&timerq.sleepq, it) {
+		timer_waitq_t *t = list_get(it, timer_waitq_t, sleepq);;
+		if (now >= t->time) {
+			list_del(it);
+			list_add(&idle->running, &t->task->running);
+			t->task->state = TASK_RUNNING;
+			kfree(t);
+			if (current == idle) {
+				set_need_resched();
+			}
+		}
+	}
 	task_t *p = current;
 	if (!--p->timeslice)
 	{
@@ -82,4 +109,17 @@ void schedule(void)
 		 */
 	} else
 		restore_flags(flags);
+}
+
+long sys_usleep(long us) {
+	u64 when = jiffies + (us * HZ + 999999 ) / 1000000;
+	list_del(&current->running);
+	current->state = TASK_INTERRUPTIBLE;
+	timer_waitq_t *q = kmalloc(sizeof(timer_waitq_t));
+	q->time = when;
+	q->task = current;
+	list_init(&q->sleepq);
+	list_add(&timerq.sleepq, &q->sleepq);
+	set_need_resched();
+	return 0;
 }

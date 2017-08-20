@@ -24,6 +24,7 @@ typedef struct task_struct
 
 	list_t tasks;
 	list_t running;
+	list_t waitq;
 
 	mm_t mm;
 	switch_regs_t regs;

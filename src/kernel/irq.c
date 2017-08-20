@@ -3,7 +3,7 @@
 #include <irq.h>
 #include <kernel.h>
 
-volatile u32 jiffies;
+volatile u64 jiffies;
 
 typedef struct
 {

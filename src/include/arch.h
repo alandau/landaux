@@ -134,6 +134,13 @@ static inline void wrmsr(u32 msr, u64 val)
 	__asm__ __volatile__ ("wrmsr" : /* no output */ : "c" (msr), "a" (val & 0xffffffff), "d" (val >> 32));
 }
 
+static inline u64 rdtsc(void)
+{
+	u32 lo, hi;
+	__asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
+	return ((u64)hi << 32) | lo;
+}
+
 #define PIC1		0x20
 #define PIC2		0xA0
 

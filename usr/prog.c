@@ -73,20 +73,27 @@ SYSCALL0(long, exit, 3)
 SYSCALL0(int, getpid, 4)
 SYSCALL0(int, pause, 5)
 SYSCALL0(int, yield, 6)
+SYSCALL1(int, usleep, 7, long)
 
 
 int main(void)
 {
 	printk("start\n");
+	usleep(1000000);
+	printk("start2\n");
 	char s[3];
 	s[0] = '1';
 	s[1] = '\n';
 	int pid = fork();
 	if (pid == 0) {
-		printk2("child: pid=%d\n", getpid(), 0, 0);
+		usleep(500000);
+		while (1) {
+			printk2("child: pid=%d\n", getpid(), 0, 0);
+			usleep(1000000);
+		}
 		s[0]='2';
 		//printk(s);
-#if 1
+#if 0
 		pid = fork();
 		if (pid == 0) {
 			printk2("grandchild, pid=%d\n", getpid(), 0, 0);
@@ -98,8 +105,10 @@ int main(void)
 		return 0;
 		//exit();
 	} else {
-		printk2("parent: pid=%d, child=%d\n", getpid(), pid, 0);
-		yield();
+		while (1) {
+			printk2("parent: pid=%d, child=%d\n", getpid(), pid, 0);
+			usleep(1000000);
+		}
 		s[0]='3';
 		//printk(s);
 		//for (int i=0; i<0xfffffff; i++) asm volatile("");
