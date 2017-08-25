@@ -208,6 +208,14 @@ void init_syscall(void) {
 	wrmsr(0xc0000084, 0x47700);	/* SFMASK */
 }
 
+void run_init_funcs(void) {
+	extern const char _init_funcs[], _init_funcs_end[];
+	for (u64 *p = (u64*)_init_funcs; p < (u64*)_init_funcs_end; p++) {
+		int (*func)(void) = (void* )*p;
+		func();
+	}
+}
+
 /* This is the C entry point of the kernel. It runs with interrupts disabled */
 void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 {
@@ -255,10 +263,15 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	init_ramfs();
 	vfs_mount("ramfs", "/");
 	extract_bootimg(mbi);
+	int init_devfs(void);
+	init_devfs();
+	vfs_mkdir("/dev");
+	vfs_mount("devfs", "/dev");
 	tree("/");
 	int init_pci(void);
 	init_pci();
 	init_syscall();
+	run_init_funcs();
 #if 0
 	kernel_thread(kthread_func, "1");
 //	schedule();

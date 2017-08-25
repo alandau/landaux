@@ -1,2 +1,2 @@
 SUBDIRS += block
-OBJS += floppy.o pci.o
+OBJS += floppy.o pci.o console.o

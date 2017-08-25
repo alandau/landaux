@@ -79,6 +79,7 @@ SYSCALL1(int, usleep, 7, long)
 int main(void)
 {
 	printk("start\n");
+	pause();
 	usleep(1000000);
 	printk("start2\n");
 	char s[3];

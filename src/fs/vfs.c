@@ -63,11 +63,10 @@ int vfs_mount(char *fstype, char *path)
 	return 0;
 }
 
-enum {COMP_NO_MORE, COMP_NORM, COMP_LAST, COMP_LAST_SLASH};
-
-static int get_next_component(char **path, char **name)
+int get_next_component(const char **path, char **name)
 {
-	char *p = *path, *buf;
+	const char *p = *path;
+       	char *buf;
 	int ret;
 	if (*p == '\0')
 		return COMP_NO_MORE;
@@ -123,7 +122,7 @@ static dentry_t *lookup_path_common(const char *path, int last_flags, char **las
 	while (1) {
 		int type;
 		dentry_t *new_dentry;
-		type = get_next_component((char **)&path, &name);
+		type = get_next_component((const char **)&path, &name);
 		if (type == COMP_NO_MORE) {
 			dentry_put(d);
 			return ERR_PTR(-ENOMEM);

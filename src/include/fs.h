@@ -29,6 +29,8 @@ typedef struct superblock {
 //#define DIR_LINK	3
 #define DIR_TYPE(x)	((x) & 7)
 
+enum {COMP_NO_MORE, COMP_NORM, COMP_LAST, COMP_LAST_SLASH};
+
 typedef struct dentry {
 	char name[PATH_MAX];
 	struct dentry *parent;
@@ -75,6 +77,8 @@ typedef struct fs {
 dentry_t *dentry_get(dentry_t *d);
 void dentry_put(dentry_t *d);
 int vfs_add_dentry(void **buffer, u32 *bufsize, char *name, u32 mode, u32 size);
+
+int get_next_component(const char **path, char **name);
 
 int register_fs(fs_t *fs);
 dentry_t *lookup_path(const char *path);
