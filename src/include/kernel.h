@@ -19,6 +19,9 @@ void kfree(void *p);
 				print_stack(NULL); cli(); halt();} while (0)
 #define BUG_ON(x)	do {if (!!(x)) BUG();} while (0)
 
+#define min(a,b) ({__typeof(a) x = a; __typeof(b) y = b; x < y ? x : y;})
+#define max(a,b) ({__typeof(a) x = a; __typeof(b) y = b; x > y ? x : y;})
+
 void dump_regs(const regs_t *r);
 void oops(const regs_t *r);
 void print_stack(const regs_t *r);

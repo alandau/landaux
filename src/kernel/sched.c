@@ -89,7 +89,7 @@ void schedule(void)
 	u64 flags = save_flags_irq();
 	task_t *prev = current;
 	task_t *next = list_get(prev->running.next, task_t, running);
-	if (prev->state == TASK_ZOMBIE) {
+	if (prev->state == TASK_ZOMBIE || prev->state == TASK_INTERRUPTIBLE || prev->state == TASK_UNINTERRUPTIBLE) {
 		list_del(&prev->running);
 	}
 	if (next == idle) {

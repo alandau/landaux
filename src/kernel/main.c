@@ -251,10 +251,8 @@ void kernel_start(unsigned long mb_checksum, multiboot_info_t *mbi)
 	init_scheduler();
 	init_pic();
 	init_pit();
-	void do_keyboard(void *);
 	void do_timer(void *);
 	register_irq(0, do_timer, NULL);
-	register_irq(1, do_keyboard, NULL);
 	sti();
 	printk("Found %u MB of memory.\n", get_mem_size()/1024/1024);
 	printk("Memory used: %u bytes.\n", get_used_mem());

@@ -61,19 +61,3 @@ void do_timer(void *data)
 	void scheduler_tick(void);
 	scheduler_tick();
 }
-
-void do_keyboard(void *data)
-{
-
-	u8 key = inb(0x60);
-	//printk("keyboard: %s - %d\n", key&0x80?"RELEASED":"PRESSED ",key&0x7F);
-	if (key & 0x80) {
-		u32 get_used_mem(void);
-		static u32 size = 1;
-		void *p = kmalloc(size);
-		printk("Allocated %d bytes at %p, memused=%ld\n", size, p, get_used_mem());
-		kfree(p);
-		printk("Freed %d bytes at %p, memused=%ld\n", size, p, get_used_mem());
-		size *= 2;
-	}
-}
