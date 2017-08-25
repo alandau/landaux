@@ -28,6 +28,7 @@ typedef struct task_struct
 
 	mm_t mm;
 	switch_regs_t regs;
+	file_t *pdt[10];
 } task_t;
 
 typedef union {

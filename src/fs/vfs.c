@@ -15,7 +15,7 @@ int register_fs(fs_t *fs)
 	return 0;
 }
 
-static int find_fs(char *name)
+static int find_fs(const char *name)
 {
 	int i;
 	for (i=0; i<fs_count; i++)
@@ -24,7 +24,7 @@ static int find_fs(char *name)
 	return -1;
 }
 
-int vfs_mount(char *fstype, char *path)
+int vfs_mount(const char *fstype, const char *path)
 {
 	int fs = find_fs(fstype);
 	if (fs == -1)

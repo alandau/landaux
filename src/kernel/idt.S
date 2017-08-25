@@ -164,4 +164,16 @@ ENTRY(sys_pause)
 ENTRY(sys_yield)
 ENTRY(sys_usleep)
 
+ENTRY(sys_getdents)
+ENTRY(sys_open)
+ENTRY(sys_close)
+ENTRY(sys_read)
+ENTRY(sys_write)
+ENTRY(sys_lseek)
+
+ENTRY(sys_mkdir)
+ENTRY(sys_rmdir)
+ENTRY(sys_unlink)
+ENTRY(sys_mount)
+
 NUM_SYSCALLS = (. - sys_call_table) / 8

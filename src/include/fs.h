@@ -85,7 +85,7 @@ dentry_t *lookup_path(const char *path);
 dentry_t *lookup_path_dir(const char *path);
 dentry_t *lookup_path_for_create_file(const char *path, char **last_name);
 dentry_t *lookup_path_for_create_dir(const char *path, char **last_name);
-int vfs_mount(char *fstype, char *path);
+int vfs_mount(const char *fstype, const char *path);
 int vfs_dgetdents(dentry_t *d, void *buf, u32 size, int start);
 int vfs_dmkdir(dentry_t *d, char *name);
 int vfs_drmdir(dentry_t *d);

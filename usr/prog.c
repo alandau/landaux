@@ -2,6 +2,9 @@ const char string[] = "global string\n";
 char in_bss[100];
 int global_data=5;
 
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
 typedef unsigned long u64;
 
 #define CLOBERRED "cx", "r11", "memory"
@@ -21,7 +24,7 @@ typedef unsigned long u64;
 	}
 
 #define SYSCALL2(rettype, name, nr, type1, type2) \
-	rettype name(type1 arg1, type2 args) { 	\
+	rettype name(type1 arg1, type2 arg2) { 	\
 		long ret;	\
 		asm volatile("syscall" : "=a" (ret) : "0" (nr), "D" ((u64)arg1), "S"((u64)arg2) : CLOBERRED);	\
 		return (rettype)ret;	\
@@ -75,10 +78,152 @@ SYSCALL0(int, pause, 5)
 SYSCALL0(int, yield, 6)
 SYSCALL1(int, usleep, 7, long)
 
+SYSCALL4(int, getdents, 8, const char *, void *, u32, int)
+SYSCALL2(int, open, 9, const char *, int)
+SYSCALL1(int, close, 10, int)
+SYSCALL3(int, read, 11, int, void *, u32)
+SYSCALL3(int, write, 12, int, const void *, u32)
+SYSCALL3(int, lseek, 13, int, u32, int)
+
+SYSCALL1(int, mkdir, 14, const char *)
+SYSCALL1(int, rmdir, 15, const char *)
+SYSCALL1(int, unlink, 16, const char *)
+SYSCALL2(int, mount, 17, const char *, const char *)
+
+
+void *strcpy(char *dest, const char *src)
+{
+	u64 tmp1, tmp2, tmp3;
+	__asm__ __volatile__ (
+		"1:\tlodsb\n\t"
+		"stosb\n\t"
+		"testb %%al, %%al\n\t"
+		"jnz 1b"
+		: "=&S" (tmp1), "=&D" (tmp2), "=&a" (tmp3)
+		: "0" (src), "1" (dest)
+		: "memory");
+	return dest;
+}
+
+u32 strlen(const char *s)
+{
+	int tmp;
+	register unsigned long res;
+	__asm__ __volatile__ (
+		"repnz\n\t"
+		"scasb\n\t"
+		"not %0\n\t"
+		"dec %0\n\t"
+		"movl %%ecx, %%ecx"
+		: "=c" (res), "=&D" (tmp)
+		: "0" (0xFFFFFFFF), "1" (s), "a" (0));
+	return res;
+}
+
+char *strcat(char *dest, const char *src)
+{
+	int len = strlen(dest);
+	strcpy(dest + len, src);
+	return dest;
+}
+
+static u8 malloc_buf[1<<20];
+static int malloc_ptr;
+void *malloc(int size) {
+	malloc_ptr = (malloc_ptr + 7) / 8 * 8;
+	if (malloc_ptr + size > 1<<20) {
+		printk2("OUT OF MEMORY %d\n", size, 0, 0);
+		pause();
+	}
+	void *p = &malloc_buf[malloc_ptr];
+	malloc_ptr += size;
+	return p;
+}
+
+void free(void *p) {
+}
+
+#define O_RDONLY	1
+#define O_WRONLY	2
+#define O_RDWR		3
+
+#define O_APPEND	4
+#define O_CREAT		8
+#define O_EXCL		16
+#define O_TRUNC		32
+
+#define PATH_MAX 255
+
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+#define DIR_FILE	1
+#define DIR_DIR		2
+//#define DIR_LINK	3
+#define DIR_TYPE(x)	((x) & 7)
+
+typedef struct {
+	u32 reclen;
+	u32 mode;
+	u32 size;
+	char name[0];
+} dentry_t;
+
+void tree(const char *path)
+{
+	char buf[100];
+	int i;
+	dentry_t *dp;
+	printk2("D %s\n", (u64)path, 0, 0);
+	int count, start = 0;
+	while (1) {
+		count = getdents(path, buf, 100, start);
+		if (count < 0) {
+			printk2("count=%d\n", count, 0, 0);
+			break;
+		}
+		if (count == 0)
+			break;
+		dp = (dentry_t *)buf;
+		for (i = 0; i < count; i++) {
+			if (DIR_TYPE(dp->mode) == DIR_DIR) {
+				char *s = malloc(strlen(path) + 1 + strlen(dp->name) + 1);
+				s[0] = '\0';
+				strcpy(s, path);
+				if (path[strlen(path)-1] != '/')
+					strcat(s, "/");
+				strcat(s, dp->name);
+				tree(s);
+				free(s);
+			} else {
+				printk2("F %s%s%s\n", (u64)path, (u64)(path[strlen(path)-1]=='/'?"":"/"), (u64)dp->name);
+			}
+			dp = (dentry_t *)(buf + dp->reclen);
+		}
+		start += count;
+	}
+}
 
 int main(void)
 {
 	printk("start\n");
+	tree("/");
+	int fd = open("/dev/platform/console/dev", O_RDWR);
+	if (fd < 0) {
+		printk2("fd=%d\n", fd, 0, 0);
+		pause();
+	}
+	const char *str = "i'm writing!!\n";
+	int err = write(fd, str, strlen(str));
+	if (err < 0) {
+		printk2("err=%d\n", err, 0, 0);
+		pause();
+	}
+	err = close(fd);
+	if (err < 0) {
+		printk2("close=%d\n", err, 0, 0);
+		pause();
+	}
 	pause();
 	usleep(1000000);
 	printk("start2\n");

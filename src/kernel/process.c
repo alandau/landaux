@@ -297,3 +297,91 @@ int sys_yield(void)
 	set_need_resched();
 	return 0;
 }
+
+int sys_open(const char *path, int flags) {
+	file_t **pdt = current->pdt;
+	int i;
+	for (i = 0; i < 10; i++) {
+		if (!pdt[i]) {
+			break;
+		}
+	}
+	if (i == 10) {
+		return -ENOMEM;
+	}
+	file_t *f = vfs_open(path, flags);
+	if (IS_ERR(f)) {
+		return PTR_ERR(f);
+	}
+	pdt[i] = f;
+	return i;
+}
+
+int sys_close(int fd) {
+	if (fd < 0 || fd >= 10) {
+		return -EBADF;
+	}
+	file_t *f = current->pdt[fd];
+	if (!f) {
+		return -EBADF;
+	}
+	int err = vfs_close(f);
+	if (err < 0) {
+		return err;
+	}
+	current->pdt[fd] = NULL;
+	return 0;
+}
+
+int sys_read(int fd, void *buf, u32 size) {
+	if (fd < 0 || fd >= 10) {
+		return -EBADF;
+	}
+	file_t *f = current->pdt[fd];
+	if (!f) {
+		return -EBADF;
+	}
+	return vfs_read(f, buf, size);
+}
+
+int sys_write(int fd, const void *buf, u32 size) {
+	if (fd < 0 || fd >= 10) {
+		return -EBADF;
+	}
+	file_t *f = current->pdt[fd];
+	if (!f) {
+		return -EBADF;
+	}
+	return vfs_write(f, buf, size);
+}
+
+int sys_lseek(int fd, u32 offset, int whence) {
+	if (fd < 0 || fd >= 10) {
+		return -EBADF;
+	}
+	file_t *f = current->pdt[fd];
+	if (!f) {
+		return -EBADF;
+	}
+	return vfs_lseek(f, offset, whence);
+}
+
+int sys_getdents(const char *path, void *buf, u32 size, int start) {
+	return vfs_getdents(path, buf, size, start);
+}
+
+int sys_mkdir(const char *path) {
+	return vfs_mkdir(path);
+}
+
+int sys_rmdir(const char *path) {
+	return vfs_rmdir(path);
+}
+
+int sys_unlink(const char *path) {
+	return vfs_unlink(path);
+}
+
+int sys_mount(const char *fstype, const char *path) {
+	return vfs_mount(fstype, path);
+}
