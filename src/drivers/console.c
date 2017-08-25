@@ -88,9 +88,9 @@ static int console_read(file_t *f, u32 offset, char *buf, u32 size) {
 	}
 
 	u64 flags = save_flags_irq();
-	int l = min(len, size);
-	memcpy(buf, buffer, l);
-	head += l;
+	int l = min(min(len, size), BUFSIZE - head);
+	memcpy(buf, &buffer[head], l);
+	head = (head + l) % BUFSIZE;
 	len -= l;
 	
 	restore_flags(flags);

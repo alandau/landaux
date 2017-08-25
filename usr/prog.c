@@ -220,10 +220,12 @@ int main(void)
 		pause();
 	}
 	char k[10];
-	err = read(fd, k, 10);
-	printk2("read=%d\n", err, 0, 0);
-	k[err] = 0;
-	write(fd, k, err);
+	do {
+		err = read(fd, k, 10);
+	//printk2("read=%d\n", err, 0, 0);
+		k[err] = 0;
+		write(fd, k, err);
+	} while (err > 0 && k[err - 1] != '\n');
 	err = close(fd);
 	if (err < 0) {
 		printk2("close=%d\n", err, 0, 0);

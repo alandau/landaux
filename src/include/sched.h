@@ -63,6 +63,9 @@ static inline void waitqueue_wakeup(waitqueue_t *q) {
 		p->state = TASK_RUNNING;
 		list_add(&idle->running, &p->running);
 	}
+	if (current == idle) {
+		set_need_resched();
+	}
 	restore_flags(flags);
 }
 
