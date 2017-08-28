@@ -11,9 +11,37 @@
 #include <string.h>
 #include <fs.h>
 
+void cpuid(u32 input, u32 *a, u32 *b, u32 *c, u32 *d) {
+	asm volatile ("cpuid" : "=a"(*a), "=b"(*b), "=c"(*c), "=d"(*d) : "0"(input));
+}
+
 static void run_init(void *data)
 {
 	printk("Running /prog...\n");
+	u32 a, b, c, d;
+	u32 max, extmax;
+	char brand[13], extbrand[49];
+	brand[12] = extbrand[0] = extbrand[48] = 0;
+	cpuid(0, &max, (u32 *)(brand + 0), (u32 *)(brand + 8), (u32 *)(brand + 4));
+	cpuid(0x80000000, &extmax, &b, &c, &d);
+	if (extmax >= 0x80000004) {
+		cpuid(0x80000002, (u32 *)(extbrand + 0), (u32 *)(extbrand + 4), (u32 *)(extbrand + 8), (u32 *)(extbrand + 12));
+		cpuid(0x80000003, (u32 *)(extbrand + 16), (u32 *)(extbrand + 20), (u32 *)(extbrand + 24), (u32 *)(extbrand + 28));
+		cpuid(0x80000004, (u32 *)(extbrand + 32), (u32 *)(extbrand + 36), (u32 *)(extbrand + 40), (u32 *)(extbrand + 44));
+	}
+	printk("Brand: %s\nExt brand: %s\n", brand, extbrand);
+	for (u32 i = 1; i <= max; i++) {
+		cpuid(i, &a, &b, &c, &d);
+		printk("0x%x: %8x %8x %8x %8x\n", i, a, b, c, d);
+	}
+	if (extmax >= 0x80000001) {
+		cpuid(0x80000001, &a, &b, &c, &d);
+		printk("0x80000001: %8x %8x %8x %8x\n", a, b, c, d);
+	}
+	for (u32 i = 0x80000005; i <= extmax; i++) {
+		cpuid(i, &a, &b, &c, &d);
+		printk("0x%x: %8x %8x %8x %8x\n", i, a, b, c, d);
+	}
 	kernel_exec("/prog");
 }
 
